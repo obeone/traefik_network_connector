@@ -1,0 +1,26 @@
+
+# Docker Configuration
+docker:
+  # Docker server address (modify as needed)
+  # (for example: tcp://127.0.0.1:2375 or unix:///var/run/docker.sock)
+  host: "unix:///var/run/docker.sock" 
+
+  # TLS Configuration
+  # Uncomment the following lines to enable TLS
+  # tls:
+  #   # Path to CA certificate for TLS verification
+  #   verify: "/path/to/ca.pem"  
+  #   # Path to client certificate for TLS
+  #   cert: "/path/to/cert.pem"
+  #   # Path to client key for TLS
+  #   key: "/path/to/key.pem"  
+
+# Logging Configuration (Possible values : "DEBUG", "INFO", "WARN", "ERROR", "FATAL")
+log_level: "DEBUG"
+
+# Traefik Specific Configuration
+traefik:
+  # Name of the Traefik container
+  container_name: "traefik-reverse-proxy-1"
+  # Label to monitor for Traefik management (using regex)
+  monitored_label: "^traefik.enable$"

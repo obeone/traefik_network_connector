@@ -1,0 +1,15 @@
+
+[Unit]
+Description=Traefik Network Connector Service
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /path/to/main.py --config_path=/path/to/config.yaml
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
