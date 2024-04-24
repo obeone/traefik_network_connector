@@ -45,7 +45,12 @@ jobs:
           tags: |
             ghcr.io/obeone/auto_docker_proxy:latest
             docker.io/obeoneorg/auto_docker_proxy:latest
-          platforms: linux/amd64,linux/arm64,linux/i386
+          platforms: |
+            linux/amd64
+            linux/arm64
+            linux/i386
+            linux/armhf
+            linux/armel
 
       - name: Set up cosign
         uses: sigstore/cosign-installer@v3
