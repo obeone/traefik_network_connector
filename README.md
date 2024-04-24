@@ -2,6 +2,8 @@
 
 This project automates the process of connecting the Traefik reverse proxy to Docker container networks dynamically. It listens for Docker events and manages Traefik's network connections to ensure it can reverse proxy for containers labeled for Traefik management.
 
+This is useful if you have, for example, one traefik proxy which handle incoming requests for multiple docker compose services. It will only to the needed networks (ie the one whith traefik labels) without the need of a common traefik network for all services, which break the isolation principal.
+
 ## Table of Contents
 
 - [Features](#features)
