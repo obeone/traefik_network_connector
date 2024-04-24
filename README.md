@@ -6,53 +6,54 @@ This project automates the process of connecting the Traefik reverse proxy to Do
 
 - [Features](#features)
 - [Requirements](#requirements)
-- [Installation](#installation)
+- [Usage](#usage)
 - [Configuration](#configuration)
   - [Configuration File](#configuration-file)
   - [Command Line Arguments](#command-line-arguments)
   - [Environment Variables](#environment-variables)
-- [Usage](#usage)
+- [Usage as a system daemon](#usage-as-a-system-daemon)
+  - [Installation](#installation)
+  - [Running](#running)
+  - [Systemd Service Setup](#systemd-service-setup)
 - [How It Works](#how-it-works)
 - [TLS Configuration](#tls-configuration)
-- [Systemd Service Setup](#systemd-service-setup)
 - [FAQs / Troubleshooting](#faqs--troubleshooting)
 - [Contributing](#contributing)
 - [Author](#author)
 
+Cette mise à jour inclut la clarification des sections "Usage" avec l'ajout de "Usage as a system daemon" pour distinguer l'installation et l'exécution dans des environnements de daemon de système.
 ## Features
 
 - 🌐 **Automatic Network Connection**: Automatically connects Traefik to the networks of newly created containers that are labeled for Traefik.
 - 🔌 **Intelligent Network Disconnection**: Disconnects Traefik from networks of containers that are no longer running, ensuring a clean and efficient network setup.
 - ⚙️ **Dynamic Configuration**: Utilizes a YAML configuration file, CLI arguments and/or environment variables for easy setup and adjustments without needing to alter the source code.
 - 🔒 **TLS Support**: Secure your Docker API communication by specifying TLS configuration details.
+- 🐳 **Run in cohtainer**: Run this tool directly as a container to easy integration in your project.
 
 ## Requirements
 
 - Docker
+
+If you want to run it outside containers, make sure you have the following installed:
+
 - Python 3.6+
 - See `requirements.txt` for details.
 
-## Installation
+## Usage
 
-To get started with the Traefik Network Connector, follow these steps:
+Start the container :
 
-1. Clone the repository:
+```bash
+docker run -d \
+  --name traefik_network_connector \
+  -v $PWD/config.yaml:/usr/src/app/config.yaml \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  obeoneorg/auto_docker_proxy:latest
+```
 
-   ```bash
-   git clone https://github.com/obeone/traefik_network_connector.git
-   ```
+And it's ok !
 
-2. Navigate to the cloned directory:
-
-   ```bash
-   cd traefik_network_connector
-   ```
-
-3. Install the required dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
+For more details about the configuration options, refer to the [Configuration](#configuration) section.
 
 ## Configuration
 
@@ -76,11 +77,33 @@ List of available command line arguments can be found using `--help`, and explai
 
 To override the default configuration settings, you can also use the environment variables (as for command line arguments above, key is the YAML path but using `_` instead of `.`). For example, to override the docker host, use the `DOCKER_HOST` environment variable.
 
-List of available environment variables can be found in the `config.yaml` file.
+## Usage as a system daemon
 
-## Usage
+### Installation
 
-To use the Traefik Network Connector, follow these steps:
+To get started with the Traefik Network Connector, follow these steps:
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/obeone/traefik_network_connector.git
+   ```
+
+2. Navigate to the cloned directory:
+
+   ```bash
+   cd traefik_network_connector
+   ```
+
+3. Install the required dependencies:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Running
+
+To use theTraefik Automatic Docker Network Connector, follow these steps:
 
 1. Ensure Docker is running and you have the necessary permissions to interact with Docker's API.
 2. Configure settings [the way you like](#configuration).
@@ -91,6 +114,16 @@ To use the Traefik Network Connector, follow these steps:
    ```
 
    If the `--config` argument is omitted, the script defaults to using `config.yaml` in the current directory.
+
+### Systemd Service Setup
+
+To manage the Traefik Automatic Docker Network Connector as a service using systemd, follow these steps:
+
+1. Place the `traefik_network_connector.service` file in `/etc/systemd/system/`.
+2. Reload the systemd daemon: `sudo systemctl daemon-reload`.
+3. Start the service: `sudo systemctl start traefik_network_connector`.
+4. Enable the service at boot: `sudo systemctl enable traefik_network_connector`.
+5. Check the service status: `sudo systemctl status traefik_network_connector`.
 
 ## How It Works
 
@@ -111,31 +144,21 @@ docker:
     key: "/path/to/key.pem"  # Path to client key for TLS
 ```
 
-## Systemd Service Setup
-
-To manage the Traefik Network Connector as a service using systemd, follow these steps:
-
-1. Place the `traefik_network_connector.service` file in `/etc/systemd/system/`.
-2. Reload the systemd daemon: `sudo systemctl daemon-reload`.
-3. Start the service: `sudo systemctl start traefik_network_connector`.
-4. Enable the service at boot: `sudo systemctl enable traefik_network_connector`.
-5. Check the service status: `sudo systemctl status traefik_network_connector`.
-
 ## FAQs / Troubleshooting
 
 This section addresses common issues and questions:
 
 - **Q: How do I resolve Docker API communication errors?**
-  - A: If you are using TCP connections, ensure your Docker daemon is configured to allow secure connections and that your `config.yaml` TLS settings are correct.
+  - A: If you are using TCP connections, ensure your Docker daemon is configured to allow secure connections and that your `config.yaml` (or CLI/Environment variable) TLS settings are correct.
 
 - **Q: What if Traefik is not connecting to a container's network?**
-  - A: Verify that the container has the correct label as specified in your [config.yaml](vscode-remote://ssh-remote%2Bmy-server/root/automatic_traefik/config.yaml#1%2C1-1%2C1) and that Traefik is running. Also, check the container's network settings to ensure it's on a network that Traefik is monitoring.
+  - A: Verify that the container has the correct label to be monitored as specified in your config.yaml and that Traefik is running an its name is properly set in your configuration. Also, check the logs.
 
 - **Q: How can I debug connection issues between Traefik and Docker containers?**
-  - A: Increase the `log_level` in [config.yaml](vscode-remote://ssh-remote%2Bmy-server/root/automatic_traefik/config.yaml#1%2C1-1%2C1) to `DEBUG` to get more detailed output from the script. This can provide insights into the connection process and where it might be failing.
+  - A: Increase the `logLevel`to `DEBUG` to get more detailed output from the script. This can provide insights into the connection process and where it might be failing.
 
 - **Q: How do I override configuration settings?**
-  - **A:** You can override settings using command line arguments as detailed in the Usage section. Each configuration in `config.yaml` can be overridden by an equivalent command line argument or environment variable.
+  - **A:** You can override settings using command line arguments as detailed in the Usage section. Each configuration in `config.yaml` can be overridden by an equivalent command line argument or environment variable, see [Configuration Settings](#configuration).
 
 - **Q: What is the priority for configuration settings?**
   - **A:** Command line arguments have the highest priority, followed by environment variables, and then the default settings in `config.yaml`.
