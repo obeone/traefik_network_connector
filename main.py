@@ -3,6 +3,9 @@ import logging
 from config import config, app_logger
 import re
 
+# Initialize the cache for container details
+container_cache = {}
+
 # Function to initialize Docker client, potentially with TLS
 def create_docker_client(config):
     """
@@ -28,6 +31,31 @@ def create_docker_client(config):
 client = create_docker_client(config)
 
 
+def update_container_cache(container_or_id):
+    """
+    Tries to get container details from Docker and updates the cache with the latest details.
+
+    This function attempts to retrieve a container using its ID or container object and updates the cache with its latest details.
+    The cache is a dictionary where the key is the container ID and the value is a dictionary
+    containing the container's networks, status, and labels. If the container cannot be retrieved,
+    the cache is not updated.
+
+    Args:
+        container_or_id (str or docker.models.containers.Container): Container object or ID of the container to update in the cache.
+    """
+    try:
+        container = client.containers.get(container_or_id) if isinstance(container_or_id, str) else container_or_id
+        
+        if container is None:
+            app_logger.warning(f"Container {container_or_id} not found. Skipping cache update.")
+            return
+
+        app_logger.debug(f"Updating container cache for container {container.name}.")
+
+        container_cache[container.id] = container
+    except docker.errors.NotFound:
+        pass  # Container not found; do not update cache
+
 def connect_to_all_relevant_networks():
     """
     Connects Traefik to all networks of containers with the 'traefik.enable=true' label.
@@ -40,6 +68,8 @@ def connect_to_all_relevant_networks():
     traefik_nets = set(traefik_container.attrs["NetworkSettings"]["Networks"])
 
     for container in client.containers.list(filters={"label": "traefik.enable=true"}):
+        update_container_cache(container)
+
         for net in container.attrs["NetworkSettings"]["Networks"]:
             if net not in traefik_nets:
                 app_logger.debug(f"Connecting Traefik to network {net}.")
@@ -106,6 +136,7 @@ def disconnect_traefik_from_network(container):
                 app_logger.info(f"Found relevant containers on network {net}, skipping disconnection.")
         else:
             app_logger.info(f"Traefik not connected to network {net}, skipping disconnection.")
+
 def monitor_events():
     """
     Monitors Docker events for container creation and destruction and manages Traefik's network connections accordingly.
@@ -121,21 +152,27 @@ def monitor_events():
 
     # Listen to Docker events in real-time
     for event in client.events(decode=True):
-        # Skip event handling if Traefik is not running
-        traefik_running = any(container.status == "running" for container in client.containers.list() if container.name == config.traefik.containerName)
-        if not traefik_running:
-            app_logger.info("Traefik container is not running. Skipping event handling.")
+        # Filter out events that are not related to container creation/destruction
+        if event.get('Type') != 'container':
             continue
+
+        # Update the container cache on every container event (can be manual connection to network for example)
+        update_container_cache(event["id"])
 
         # Check if the event is relevant for network management
         if event["Type"] in tracked_events and event["Action"] in tracked_events[event["Type"]]:
-            app_logger.debug(f"Event detected: {event['Action']} on container {event['id']}.")
-            try:
-                # Retrieve the container associated with the event
-                container = client.containers.get(event["id"])
-            except docker.errors.NotFound:
-                app_logger.warning(f"Container {event['id']} not found.")
-                container = None
+            # Fetch the container from the cache or None if not found
+            container = container_cache[event["id"]] if event["id"] in container_cache else None
+
+            app_logger.debug(f"Event detected: {event['Action']} on container {container.name if container else event['id']} with ID {event['id']}.")
+
+            # Skip further processing if the container is not found or Traefik is not running
+            if container is None:
+                app_logger.warning(f"Container {event['id']} not found. Skipping event handling.")
+                continue
+            traefik_running = any(container.status == "running" for container in client.containers.list() if container.name == config.traefik.containerName)
+            if not traefik_running:
+                app_logger.info("Traefik container is not running. Skipping event handling.")
                 continue
 
             # Define the monitored label pattern
@@ -155,12 +192,13 @@ def monitor_events():
                 if event["Action"] == "start":
                     app_logger.info(f"Container {container.name} is being created. Attempting to connect Traefik to relevant networks.")
                     connect_traefik_to_network(container)
-                    
+
                 elif event["Action"] == "die":
                     app_logger.info(
                         f"Container {container.name} is being killed. Attempting to disconnect Traefik to relevant networks."
                     )
                     disconnect_traefik_from_network(container)
+                    del container_cache[event["id"]]
 
 if __name__ == "__main__":
     # Connect to all relevant networks on startup
