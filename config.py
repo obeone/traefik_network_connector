@@ -116,14 +116,22 @@ def apply_overrides_from_env_and_cli(config, args):
         config (dict): The configuration dictionary to be modified.
         args (argparse.Namespace): The parsed command line arguments.
     """
-    env_vars = {k.upper(): v for k, v in os.environ.items()}
-    for key, value in config.items():
-        env_key = key.upper()
-        if env_key in env_vars:
-            config[key] = env_vars[env_key]
-        arg_key = key.lower().replace('.', '__')  # Adapt for CLI argument format
-        if hasattr(args, arg_key) and getattr(args, arg_key) is not None:
-            config[key] = getattr(args, arg_key)
+    def apply_overrides(config, prefix=''):
+        env_vars = {k.upper(): v for k, v in os.environ.items()}
+        cli_args = vars(args)  # Convert Namespace to dict for easier access
+        for key, value in config.items():
+            full_key = f"{prefix}{key}".upper()
+            env_key = full_key.replace('.', '_')
+            arg_key = full_key.lower()
+            if isinstance(value, dict):
+                apply_overrides(value, prefix=f"{full_key}.")
+            else:
+                if env_key in env_vars:
+                    config[key] = type(value)(env_vars[env_key])  # Convert env var to correct type
+                if arg_key in cli_args and cli_args[arg_key] is not None:
+                    config[key] = cli_args[arg_key]  # Directly use the value from CLI args
+
+    apply_overrides(config)
 
 def init_loggers(config):
     """
