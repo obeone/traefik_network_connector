@@ -64,7 +64,14 @@ def connect_to_all_relevant_networks():
     their networks if it's not already connected. This ensures Traefik can route traffic to these containers.
     """
     app_logger.debug("Searching for Traefik container to connect to relevant networks.")
-    traefik_container = client.containers.get(config.traefik.containerName)
+    
+    try:
+        traefik_container = client.containers.get(config.traefik.containerName)
+        
+    except docker.errors.NotFound:
+        app_logger.warning("Traefik container not found. Skipping network connection.")
+        return
+    
     traefik_nets = set(traefik_container.attrs["NetworkSettings"]["Networks"])
 
     for container in client.containers.list(filters={"label": "traefik.enable=true"}):
