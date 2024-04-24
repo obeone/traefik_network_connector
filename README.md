@@ -1,4 +1,4 @@
-# Traefik Network Connector
+# Traefik Automatic Docker Network Connector
 
 This project automates the process of connecting the Traefik reverse proxy to Docker container networks dynamically. It listens for Docker events and manages Traefik's network connections to ensure it can reverse proxy for containers labeled for Traefik management.
 
@@ -8,6 +8,9 @@ This project automates the process of connecting the Traefik reverse proxy to Do
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Configuration](#configuration)
+  - [Configuration File](#configuration-file)
+  - [Command Line Arguments](#command-line-arguments)
+  - [Environment Variables](#environment-variables)
 - [Usage](#usage)
 - [How It Works](#how-it-works)
 - [TLS Configuration](#tls-configuration)
@@ -20,8 +23,8 @@ This project automates the process of connecting the Traefik reverse proxy to Do
 
 - 🌐 **Automatic Network Connection**: Automatically connects Traefik to the networks of newly created containers that are labeled for Traefik.
 - 🔌 **Intelligent Network Disconnection**: Disconnects Traefik from networks of containers that are no longer running, ensuring a clean and efficient network setup.
-- ⚙️ **Dynamic Configuration**: Utilizes a YAML configuration file for easy setup and adjustments without needing to alter the source code.
-- 🔒 **TLS Support**: Secure your Docker API communication by specifying TLS configuration details in `config.yaml`.
+- ⚙️ **Dynamic Configuration**: Utilizes a YAML configuration file, CLI arguments and/or environment variables for easy setup and adjustments without needing to alter the source code.
+- 🔒 **TLS Support**: Secure your Docker API communication by specifying TLS configuration details.
 
 ## Requirements
 
@@ -53,27 +56,41 @@ To get started with the Traefik Network Connector, follow these steps:
 
 ## Configuration
 
+### Configuration File
+
 Modify `config.yaml` to adjust the Traefik container name, the label to monitor, and other settings. Key configuration options include:
 
-- `traefik_container_name`: Name of the Traefik container in Docker.
-- `monitored_label`: Docker label that triggers network connection actions.
-- `log_level`: Adjust the verbosity of the script's output.
+- `traefik.containerName`: Name of the Traefik container in Docker.
+- `monitoredLabel`: Docker label that triggers network connection actions.
+- `logLevel`: Adjust the verbosity of the script's output.
 
 For a detailed explanation of all configuration options, refer to the comments within `config.yaml`.
+
+### Command Line Arguments
+
+To override the default configuration settings, use the command line arguments using the `--key=value` (key is the YAML path) format. The YAML path is used to access the corresponding value in the configuration. For example, to override the log level, use the `--loglevel=INFO` argument. For the docker host, use the `--docker.host` argument.
+
+List of available command line arguments can be found using `--help`, and explaination in the `config.yaml` file.
+
+### Environment Variables
+
+To override the default configuration settings, you can also use the environment variables (as for command line arguments above, key is the YAML path but using `_` instead of `.`). For example, to override the docker host, use the `DOCKER_HOST` environment variable.
+
+List of available environment variables can be found in the `config.yaml` file.
 
 ## Usage
 
 To use the Traefik Network Connector, follow these steps:
 
 1. Ensure Docker is running and you have the necessary permissions to interact with Docker's API.
-2. Configure `config.yaml` with your Traefik container's name and desired log level.
+2. Configure settings [the way you like](#configuration).
 3. Run the script:
 
    ```bash
-   python main.py --config_path=<path_to_your_config.yaml>
+   python main.py --config=<path_to_your_config.yaml>
    ```
 
-   If the `--config_path` argument is omitted, the script defaults to using `config.yaml` in the current directory.
+   If the `--config` argument is omitted, the script defaults to using `config.yaml` in the current directory.
 
 ## How It Works
 
@@ -116,6 +133,15 @@ This section addresses common issues and questions:
 
 - **Q: How can I debug connection issues between Traefik and Docker containers?**
   - A: Increase the `log_level` in [config.yaml](vscode-remote://ssh-remote%2Bmy-server/root/automatic_traefik/config.yaml#1%2C1-1%2C1) to `DEBUG` to get more detailed output from the script. This can provide insights into the connection process and where it might be failing.
+
+- **Q: How do I override configuration settings?**
+  - **A:** You can override settings using command line arguments as detailed in the Usage section. Each configuration in `config.yaml` can be overridden by an equivalent command line argument or environment variable.
+
+- **Q: What is the priority for configuration settings?**
+  - **A:** Command line arguments have the highest priority, followed by environment variables, and then the default settings in `config.yaml`.
+
+- **Q: How can I debug issues with incorrect configuration values?**
+  - **A:** Ensure that your command line arguments and environment variables are correctly formatted and match the expected patterns. Use the `--help` option with the script to see available command line arguments.
 
 ## Contributing
 
