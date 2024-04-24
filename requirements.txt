@@ -1,3 +1,3 @@
-docker
-coloredlogs
-PyYAML
+docker==7.0.0
+coloredlogs==15.0.1
+PyYAML==6.0.1
