@@ -21,7 +21,6 @@ This project automates the process of connecting the Traefik reverse proxy to Do
 - [Contributing](#contributing)
 - [Author](#author)
 
-Cette mise à jour inclut la clarification des sections "Usage" avec l'ajout de "Usage as a system daemon" pour distinguer l'installation et l'exécution dans des environnements de daemon de système.
 ## Features
 
 - 🌐 **Automatic Network Connection**: Automatically connects Traefik to the networks of newly created containers that are labeled for Traefik.
