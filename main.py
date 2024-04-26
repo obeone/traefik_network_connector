@@ -137,8 +137,8 @@ def disconnect_traefik_from_network(container):
             relevant_containers = []
             for cid in connected_containers:
                 try:
-                    container = client.containers.get(cid)
-                    if container.labels.get("traefik.enable") == "true" and cid != traefik_container.id and cid != container.id:
+                    container_to_check = client.containers.get(cid)
+                    if container_to_check.labels.get("traefik.enable") == "true" and cid != traefik_container.id and cid != container.id:
                         relevant_containers.append(cid)
                 except docker.errors.NotFound:
                     continue
