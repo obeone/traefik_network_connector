@@ -131,9 +131,18 @@ def disconnect_traefik_from_network(container):
             network = client.networks.get(net)
             # Fetch all containers connected to the network
             connected_containers = network.attrs["Containers"]
+            
             # Filter for containers with 'traefik.enable=true' label, excluding the Traefik container itself
-            relevant_containers = [cid for cid in connected_containers if client.containers.get(cid).labels.get("traefik.enable") == "true" and cid != traefik_container.id]
-
+            # Some containers may be destroyed since we got the list, so we don't do errors on them
+            relevant_containers = []
+            for cid in connected_containers:
+                try:
+                    container = client.containers.get(cid)
+                    if container.labels.get("traefik.enable") == "true" and cid != traefik_container.id:
+                        relevant_containers.append(cid)
+                except docker.errors.NotFound:
+                    continue
+                
             # If no relevant containers are found, disconnect Traefik from the network
             if not relevant_containers:
                 app_logger.debug(f"No relevant containers found on network {net}. Disconnecting Traefik.")
