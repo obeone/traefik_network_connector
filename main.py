@@ -102,7 +102,7 @@ def connect_traefik_to_network(container):
         network = client.networks.get(net)
         
         if container.labels.get('com.docker.compose.project') and 'com.docker.compose.project' in network.attrs['Labels']:
-            if container.labels.get('com.docker.compose.project') == network.attrs['Labels']['com.docker.compose.project'] and network.attrs['Labels']['com.docker.compose.net']  in allowed_networks:
+            if container.labels.get('com.docker.compose.project') == network.attrs['Labels']['com.docker.compose.project'] and network.attrs['Labels']['com.docker.compose.network']  in allowed_networks:
                 app_logger.debug(f"Network {network.attrs['Name']} corresponds to a docker compose network described in the allowed networks.")
             
                 # Construct the real network name for Docker Compose projects
