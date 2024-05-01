@@ -1,7 +1,18 @@
-version: '3'
-
 services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    command:
+      - "--log.level=INFO"
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "8000:80"
+
   auto_docker_proxy:
     image: obeoneorg/auto_docker_proxy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+
