@@ -25,7 +25,7 @@ This is useful if you have, for example, one traefik proxy which handle incoming
 
 ## Features
 
-- 🌐 **Automatic Network Connection**: Automatically connects Traefik to the networks of newly created containers that are labeled for Traefik.
+- 🌐 **Automatic Network Connection**: Automatically connects Traefik to the networks of newly created containers that are labeled for Traefik. Ability to indicate which networks to connect to.
 - 🔌 **Intelligent Network Disconnection**: Disconnects Traefik from networks of containers that are no longer running, ensuring a clean and efficient network setup.
 - ⚙️ **Dynamic Configuration**: Utilizes a YAML configuration file, CLI arguments and/or environment variables for easy setup and adjustments without needing to alter the source code.
 - 🔒 **TLS Support**: Secure your Docker API communication by specifying TLS configuration details.
@@ -63,7 +63,7 @@ For more details about the configuration options, refer to the [Configuration](#
 Modify `config.yaml` to adjust the Traefik container name, the label to monitor, and other settings. Key configuration options include:
 
 - `traefik.containerName`: Name of the Traefik container in Docker.
-- `monitoredLabel`: Docker label that triggers network connection actions.
+- `traefik.monitoredLabel`: Docker label that triggers network connection actions.
 - `logLevel`: Adjust the verbosity of the script's output.
 
 For a detailed explanation of all configuration options, refer to the comments within `config.yaml`.
@@ -129,7 +129,7 @@ To manage the Traefik Automatic Docker Network Connector as a service using syst
 ## How It Works
 
 - **Monitoring Docker Events**: Listens for creation and destruction events of containers and manages network connections accordingly.
-- **Connecting Traefik**: When a container with the specified label is created, it connects Traefik to its network if not already connected.
+- **Connecting Traefik**: When a container with the specified label is created, it connects Traefik to its network if not already connected. If a config specified label is present (default is `autoproxy.networks`) only these networks will be connected to.
 - **Disconnecting Traefik**: If a container is destroyed, it checks if Traefik should be disconnected from its network, based on other containers' usage of the network.
 
 ## TLS Configuration
@@ -166,6 +166,12 @@ This section addresses common issues and questions:
 
 - **Q: How can I debug issues with incorrect configuration values?**
   - **A:** Ensure that your command line arguments and environment variables are correctly formatted and match the expected patterns. Use the `--help` option with the script to see available command line arguments.
+
+
+- **Q: How can I specify the networks Traefik should connect to?**
+  - **A:** To specify the networks Traefik should connect to, you can set the `autoproxy.networks` label on the Docker containers you want Traefik to manage. Add the label with the network names separated by commas. You can change the label in [Configuration](#configuration).
+
+
 
 ## Contributing
 
