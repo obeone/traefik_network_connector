@@ -58,57 +58,72 @@ def update_container_cache(container_or_id):
 
 def connect_to_all_relevant_networks():
     """
-    Connects Traefik to all networks of containers with the 'traefik.enable=true' label.
+    Connects Traefik to all networks of containers with the 'traefik.enable=true' label and ensures connection only to networks specified in the 'traefik.networkLabel' label if present.
 
-    This function iterates over all containers labeled 'traefik.enable=true' and connects the Traefik container to
-    their networks if it's not already connected. This ensures Traefik can route traffic to these containers.
+    This function iterates over all containers labeled 'traefik.enable=true'. If the container has a 'traefik.networkLabel' label, it checks if the network is listed in the label's value before connecting the Traefik container to their networks if it's not already connected. This ensures Traefik can route traffic to these containers.
     """
-    app_logger.debug("Searching for Traefik container to connect to relevant networks.")
-    
-    try:
-        traefik_container = client.containers.get(config.traefik.containerName)
-        
-    except docker.errors.NotFound:
-        app_logger.warning("Traefik container not found. Skipping network connection.")
+    if not is_traefik_running():
+        app_logger.warning("Traefik is not running. Skipping network connection.")
         return
     
-    traefik_nets = set(traefik_container.attrs["NetworkSettings"]["Networks"])
-
+    app_logger.debug("Searching for Traefik container to connect to relevant networks.")
+    
     for container in client.containers.list(filters={"label": "traefik.enable=true"}):
         update_container_cache(container)
-
-        for net in container.attrs["NetworkSettings"]["Networks"]:
-            if net not in traefik_nets:
-                app_logger.debug(f"Connecting Traefik to network {net}.")
-                network = client.networks.get(net)
-                network.connect(traefik_container)
-                traefik_nets.add(net)
-                app_logger.info(f"Traefik connected to network {net}.")
-            else:
-                app_logger.info(f"Traefik already connected to network {net}, skipping.")
+        connect_traefik_to_network(container)
+    
+    app_logger.debug("Finished searching for Traefik container to connect to relevant networks.")
 
 def connect_traefik_to_network(container):
     """
-    Connects Traefik to the network of a specified container if not already connected.
+    Connects Traefik to the network of a specified container if not already connected, considering the 'traefik.networkLabel' for allowed networks, and accounting for external networks.
 
     Args:
         container (docker.models.containers.Container): Container to connect Traefik to its network.
 
     This function checks if Traefik is already connected to the network of the specified container. If not, it
-    connects Traefik to this network to enable traffic routing.
+    connects Traefik to this network to enable traffic routing. It also checks if the 'traefik.networkLabel' is present
+    on the container and if so, only connects to the networks listed in this label. Additionally, it accounts for
+    external networks in network names.
     """
-    app_logger.debug(f"Connecting Traefik to network of container {container.name}.")
+    app_logger.debug(f"Attempting to connect Traefik to the network of container {container.name}.")
+    # Retrieve the Traefik container based on configuration
     traefik_container = client.containers.get(config.traefik.containerName)
-    target_networks = set(container.attrs["NetworkSettings"]["Networks"])
+    # Determine the target networks of the specified container
+    target_networks = set(container.attrs["NetworkSettings"]["Networks"].keys())
+    # Retrieve allowed networks from the container's labels, if specified
+    allowed_networks_label = container.labels.get(config.traefik.networkLabel, "")
+    allowed_networks = allowed_networks_label.split(",")
+    
+    app_logger.debug(f"Allowed networks: {allowed_networks}")
 
     for net in target_networks:
-        if net not in traefik_container.attrs["NetworkSettings"]["Networks"]:
-            app_logger.debug(f"Connecting Traefik to network {net}.")
-            network = client.networks.get(net)
-            network.connect(traefik_container)
-            app_logger.info(f"Traefik connected to network {net}.")
+        # Attempt to retrieve the network object; checks for external networks by matching labels
+        network = client.networks.get(net)
+        
+        if container.labels.get('com.docker.compose.project') and 'com.docker.compose.project' in network.attrs['Labels']:
+            if container.labels.get('com.docker.compose.project') == network.attrs['Labels']['com.docker.compose.project'] and network.attrs['Labels']['com.docker.compose.network']  in allowed_networks:
+                app_logger.debug(f"Network {network.attrs['Name']} corresponds to a docker compose network described in the allowed networks.")
+            
+                # Construct the real network name for Docker Compose projects
+                real_network = f"{network.attrs['Labels']['com.docker.compose.project']}_{network.attrs['Labels']['com.docker.compose.network']}"
+                # Determine if the network is listed in the allowed networks, adjusting the list as necessary
+                index_allowed = allowed_networks.index(network.attrs['Labels']['com.docker.compose.network']) if network.attrs['Labels']['com.docker.compose.network'] in allowed_networks else -1
+                
+                if index_allowed >= 0:
+                    allowed_networks[index_allowed] = real_network
+                    app_logger.debug(f"Adjusted allowed network to {real_network}.")
+        
+        # Connect Traefik to the network if allowed, or log that it's skipping the connection
+        if allowed_networks == [''] or net in allowed_networks:
+            if net not in traefik_container.attrs["NetworkSettings"]["Networks"]:
+                app_logger.debug(f"Connecting Traefik to network {net}.")
+                network.connect(traefik_container)
+                app_logger.info(f"Successfully connected Traefik to network {net}.")
+            else:
+                app_logger.info(f"Traefik is already connected to network {net}, skipping connection.")
         else:
-            app_logger.info(f"Traefik already connected to network {net}, skipping.")
+            app_logger.info(f"Network {net} is not listed in allowed networks, skipping connection.")
 
 def disconnect_traefik_from_network(container):
     """
@@ -153,6 +168,16 @@ def disconnect_traefik_from_network(container):
         else:
             app_logger.info(f"Traefik not connected to network {net}, skipping disconnection.")
 
+def is_traefik_running():
+    """
+    Checks if Traefik container is running.
+
+    Returns:
+        bool: True if Traefik container is running, False otherwise.
+    """
+    traefik_running = any(container.status == "running" for container in client.containers.list() if container.name == config.traefik.containerName)
+    return traefik_running
+
 def monitor_events():
     """
     Monitors Docker events for container creation and destruction and manages Traefik's network connections accordingly.
@@ -171,6 +196,10 @@ def monitor_events():
         # Filter out events that are not related to container creation/destruction
         if event.get('Type') != 'container':
             continue
+        
+        if not is_traefik_running():
+            app_logger.warning("Traefik is not running. Skipping event handling.")
+            continue
 
         # Update the container cache on every container event (can be manual connection to network for example)
         update_container_cache(event["id"])
@@ -185,10 +214,6 @@ def monitor_events():
             # Skip further processing if the container is not found or Traefik is not running
             if container is None:
                 app_logger.warning(f"Container {event['id']} not found. Skipping event handling.")
-                continue
-            traefik_running = any(container.status == "running" for container in client.containers.list() if container.name == config.traefik.containerName)
-            if not traefik_running:
-                app_logger.info("Traefik container is not running. Skipping event handling.")
                 continue
 
             # Define the monitored label pattern

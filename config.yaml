@@ -27,6 +27,9 @@ logLevel:
 # Traefik Specific Configuration
 traefik:
   # Name of the Traefik container
-  containerName: "traefik-reverse-proxy-1"
+  containerName: "traefik"
   # Label to monitor for Traefik management (using regex)
   monitoredLabel: "^traefik.enable$"
+  # Label of auto_docker_proxy network to connect to (not mandatory on services but if present, only connect to these networks)
+  # For example, if you have 2 docker networks, "autoproxy.networks" label can be "autoproxy.networks=network1" to only connect to network1
+  networkLabel: "autoproxy.networks"
