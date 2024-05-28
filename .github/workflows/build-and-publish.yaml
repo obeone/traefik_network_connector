@@ -45,6 +45,8 @@ jobs:
           tags: |
             ghcr.io/obeone/auto_docker_proxy:latest
             docker.io/obeoneorg/auto_docker_proxy:latest
+            ghcr.io/obeone/traefik_network_connector:latest
+            docker.io/obeoneorg/traefik_network_connector:latest
           platforms: |
             linux/amd64
             linux/arm64
@@ -59,6 +61,8 @@ jobs:
         run: |
           cosign sign --yes ghcr.io/obeone/auto_docker_proxy@${DIGEST}
           cosign sign --yes docker.io/obeoneorg/auto_docker_proxy@${DIGEST}
+          cosign sign --yes ghcr.io/obeone/traefik_network_connector@${DIGEST}
+          cosign sign --yes docker.io/obeoneorg/traefik_network_connector@${DIGEST}
         env:
           COSIGN_EXPERIMENTAL: true
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
