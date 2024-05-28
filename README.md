@@ -6,22 +6,24 @@ This is useful if you have, for example, one traefik proxy which handle incoming
 
 ## Table of Contents
 
-- [Features](#features)
-- [Requirements](#requirements)
-- [Usage](#usage)
-- [Configuration](#configuration)
-  - [Configuration File](#configuration-file)
-  - [Command Line Arguments](#command-line-arguments)
-  - [Environment Variables](#environment-variables)
-- [Usage as a system daemon](#usage-as-a-system-daemon)
-  - [Installation](#installation)
-  - [Running](#running)
-  - [Systemd Service Setup](#systemd-service-setup)
-- [How It Works](#how-it-works)
-- [TLS Configuration](#tls-configuration)
-- [FAQs / Troubleshooting](#faqs--troubleshooting)
-- [Contributing](#contributing)
-- [Author](#author)
+- [Traefik Automatic Docker Network Connector](#traefik-automatic-docker-network-connector)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Requirements](#requirements)
+  - [Usage](#usage)
+  - [Configuration](#configuration)
+    - [Configuration File](#configuration-file)
+    - [Command Line Arguments](#command-line-arguments)
+    - [Environment Variables](#environment-variables)
+  - [Usage as a system daemon](#usage-as-a-system-daemon)
+    - [Installation](#installation)
+    - [Running](#running)
+    - [Systemd Service Setup](#systemd-service-setup)
+  - [How It Works](#how-it-works)
+  - [TLS Configuration](#tls-configuration)
+  - [FAQs / Troubleshooting](#faqs--troubleshooting)
+  - [Contributing](#contributing)
+  - [Author](#author)
 
 ## Features
 
@@ -49,7 +51,7 @@ docker run -d \
   --name traefik_network_connector \
   -v $PWD/config.yaml:/usr/src/app/config.yaml \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  obeoneorg/auto_docker_proxy:latest
+  obeoneorg/traefik_network_connector:latest
 ```
 
 And it's ok !
@@ -104,7 +106,7 @@ To get started with the Traefik Network Connector, follow these steps:
 
 ### Running
 
-To use theTraefik Automatic Docker Network Connector, follow these steps:
+To use the Traefik Automatic Docker Network Connector, follow these steps:
 
 1. Ensure Docker is running and you have the necessary permissions to interact with Docker's API.
 2. Configure settings [the way you like](#configuration).
