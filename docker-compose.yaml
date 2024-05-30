@@ -10,6 +10,8 @@ services:
       - "--entrypoints.web.address=:80"
     ports:
       - "8000:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   auto_docker_proxy:
     image: obeoneorg/traefik_network_connector
