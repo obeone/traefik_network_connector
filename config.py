@@ -170,7 +170,7 @@ def load_config() -> Config:
         file=config_data["docker"]["tls"]["key"])
 
     docker_tls: DockerTLSConfig = DockerTLSConfig(
-        enabled=True if config_data["docker"]["tls"]["enabled"].lower() == 'true' else False,
+        enabled=config_data["docker"]["tls"]["enabled"],
         verify=tls_cert_verify,
         cert=tls_cert_container_cert,
         key=tls_cert_container_key)
