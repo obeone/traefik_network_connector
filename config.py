@@ -10,16 +10,27 @@ from types import SimpleNamespace
 # Temporary logging configuration
 coloredlogs.install(level="WARN")
 
+class TLSCertificateConfig(NamedTuple):
+    """A path to a certificate required by TLS."""
+    file: str
+
+class DockerTLSConfig(NamedTuple):
+    """The container representing the TLS config information needed by Docker"""
+    verify: TLSCertificateConfig
+    cert: TLSCertificateConfig
+    key: TLSCertificateConfig
+    enabled: bool
+
 class DockerConfig(NamedTuple):
     """
     Configuration for Docker.
 
     Attributes:
         host (str): The Docker host URL.
-        tls (Dict[str, Any]): The TLS configuration for Docker.
+        tls (DockerTLSConfig): The container that holds the Docker host URL and TLS configurations that go with it
     """
     host: str
-    tls: Dict[str, Any]
+    tls: DockerTLSConfig
 
 class LogLevelConfig(NamedTuple):
     """
@@ -151,11 +162,31 @@ def load_config() -> Config:
 
     apply_overrides_from_env_and_cli(config_data, args)
 
-    docker_config = DockerConfig(host=config_data['docker']['host'], tls=config_data['docker']['tls'])
-    log_level_config = LogLevelConfig(general=config_data['logLevel']['general'], application=config_data['logLevel']['application'])
-    traefik_config = TraefikConfig(containerName=config_data['traefik']['containerName'], monitoredLabel=config_data['traefik']['monitoredLabel'], networkLabel=config_data['traefik']['networkLabel'])
+    tls_cert_verify: TLSCertificateConfig = TLSCertificateConfig(
+        file=config_data["docker"]["tls"]["verify"])
+    tls_cert_container_cert: TLSCertificateConfig = TLSCertificateConfig(
+        file=config_data["docker"]["tls"]["cert"])
+    tls_cert_container_key: TLSCertificateConfig = TLSCertificateConfig(
+        file=config_data["docker"]["tls"]["key"])
 
-    config = Config(docker=docker_config, logLevel=log_level_config, traefik=traefik_config)
+    docker_tls: DockerTLSConfig = DockerTLSConfig(
+        enabled=True if config_data["docker"]["tls"]["enabled"].lower() == 'true' else False,
+        verify=tls_cert_verify,
+        cert=tls_cert_container_cert,
+        key=tls_cert_container_key)
+
+    docker: DockerConfig = DockerConfig(host=config_data["docker"]["host"], tls=docker_tls)
+
+    log_level: LogLevelConfig = LogLevelConfig(
+        general=config_data["logLevel"]["general"],
+        application=config_data["logLevel"]["application"])
+
+    traefik: TraefikConfig = TraefikConfig(
+        containerName=config_data["traefik"]["containerName"],
+        monitoredLabel=config_data["traefik"]["monitoredLabel"],
+        networkLabel=config_data["traefik"]["networkLabel"])
+
+    config: Config = Config(docker=docker, logLevel=log_level, traefik=traefik)
 
     logging.debug("Final configuration as Config: %s", config)
     return config
