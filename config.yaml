@@ -32,4 +32,7 @@ traefik:
   monitoredLabel: "^traefik.enable$"
   # Label of traefik_network_connector network to connect to (not mandatory on services but if present, only connect to these networks)
   # For example, if you have 2 docker networks, "autoproxy.networks" label can be "autoproxy.networks=network1" to only connect to network1
-  networkLabel: "autoproxy.networks"
+  # DEPRECATED !
+  # Traefik has his own label for it `traefik.docker.network`, so we stick to it. Keep this one for compatibility
+  # networkLabel: "autoproxy.networks"
+  # (Defaulted to traefik.docker.network)
