@@ -175,6 +175,10 @@ def load_config() -> Config:
         cert=tls_cert_container_cert,
         key=tls_cert_container_key)
 
+    # Traefik has it's own parameter for network, so we have to use it !
+    if 'networkLabel' not in config_data['traefik']:
+        config_data['traefik']['networkLabel'] = 'traefik.docker.network'
+
     docker: DockerConfig = DockerConfig(host=config_data["docker"]["host"], tls=docker_tls)
 
     log_level: LogLevelConfig = LogLevelConfig(
