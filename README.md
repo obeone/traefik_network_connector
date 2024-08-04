@@ -65,7 +65,7 @@ For more details about the configuration options, refer to the [Configuration](#
 Modify `config.yaml` to adjust the Traefik container name, the label to monitor, and other settings. Key configuration options include:
 
 - `traefik.containerName`: Name of the Traefik container in Docker.
-- `traefik.monitoredLabel`: Docker label that triggers network connection actions.
+- `traefik.monitoredLabel`: Docker label that triggers network connection actions. (DEPRECATED ! Directly use `traefik.docker.network` instead in Traefik 2.0+)
 - `logLevel`: Adjust the verbosity of the script's output.
 
 For a detailed explanation of all configuration options, refer to the comments within `config.yaml`.
