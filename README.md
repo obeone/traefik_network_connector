@@ -65,8 +65,14 @@ For more details about the configuration options, refer to the [Configuration](#
 Modify `config.yaml` to adjust the Traefik container name, the label to monitor, and other settings. Key configuration options include:
 
 - `traefik.containerName`: Name of the Traefik container in Docker.
-- `traefik.monitoredLabel`: Docker label that triggers network connection actions. (DEPRECATED ! Directly use `traefik.docker.network` instead in Traefik 2.0+)
 - `logLevel`: Adjust the verbosity of the script's output.
+- `traefik.monitoredLabel`: Docker label that triggers network connection actions. (DEPRECATED ! Directly use `traefik.docker.network` instead in Traefik 2.0+)
+
+> :warning: **Take care !**
+> @ If you use `traefik.monitoredLabel`, you just have to give the network name in your compose file.
+> But if you use `traefik.docker.network`, you need to prefix the network name (for the example, let's say `mynetwork`) with your deployment name (for example, you run `docker compose up` in a directory named `foo`, your network name will be `foo_mynetwork`).
+> I don't understand why me, a single developer without special knowledge about docker, I was able to detect the compose name, but not Traefik...
+> So you can't use a same compose for multiple deployment, it's kind of ridiculous, but I didn't find an elegant solution... (Il you have an idea, contact me !)
 
 For a detailed explanation of all configuration options, refer to the comments within `config.yaml`.
 
@@ -169,11 +175,8 @@ This section addresses common issues and questions:
 - **Q: How can I debug issues with incorrect configuration values?**
   - **A:** Ensure that your command line arguments and environment variables are correctly formatted and match the expected patterns. Use the `--help` option with the script to see available command line arguments.
 
-
 - **Q: How can I specify the networks Traefik should connect to?**
-  - **A:** To specify the networks Traefik should connect to, you can set the `autoproxy.networks` label on the Docker containers you want Traefik to manage. Add the label with the network names separated by commas. You can change the label in [Configuration](#configuration).
-
-
+  - **A:** It was easy, but... Look at [Configuration](#configuration).
 
 ## Contributing
 
@@ -185,6 +188,6 @@ For support or queries, please open an issue on this repository. We aim to respo
 
 👾 **obeone**
 
-Primarily powered by my new brain, GPT-4, with some crucial tweaks and oversight from my secondary brain.
+Primarily powered by my new brain, GPT-4o, with some crucial tweaks and oversight from my secondary brain.
 
 Check out more of my work on [GitHub](https://github.com/obeone).
