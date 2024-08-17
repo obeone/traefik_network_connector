@@ -50,11 +50,9 @@ jobs:
 
       - name: Check for admin approval
         id: check-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Install jq
-          sudo apt-get update
-          sudo apt-get install -y jq
-
           PR_NUMBER=${{ github.event.pull_request.number }}
 
           # Fetch the reviews for the pull request
