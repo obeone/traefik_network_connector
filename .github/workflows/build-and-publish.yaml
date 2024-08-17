@@ -47,12 +47,20 @@ jobs:
             echo "::set-output name=trusted::false"
           fi
 
+
       - name: Check for admin approval
         id: check-approval
         run: |
-          # Check for approvals from admins
+          # Install jq
+          sudo apt-get update
+          sudo apt-get install -y jq
+
           PR_NUMBER=${{ github.event.pull_request.number }}
-          APPROVALS=$(gh pr reviews $PR_NUMBER --json author,authorAssociation,state --jq '.[] | select(.state=="APPROVED" and .authorAssociation=="ADMIN") | .author.login')
+
+          # Fetch the reviews for the pull request
+          APPROVALS=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews --jq '.[] | select(.state=="APPROVED" and .author_association=="ADMIN") | .user.login')
+
+          # Check if any of the reviews are from an admin
           if [[ -n "$APPROVALS" ]]; then
             echo "PR is approved by an admin"
             echo "::set-output name=approved::true"
