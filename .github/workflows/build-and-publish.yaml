@@ -36,6 +36,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Determine if PR author is trusted
+        if: ${{ github.event_name == 'pull_request' }}
         id: check-author
         run: |
           trusted_authors=("obeone")
@@ -49,6 +50,7 @@ jobs:
 
 
       - name: Check for admin approval
+        if: ${{ github.event_name == 'pull_request' }}
         id: check-approval
         env:
           GH_TOKEN: ${{ github.token }}
