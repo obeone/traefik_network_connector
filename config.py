@@ -4,8 +4,7 @@ import yaml
 import os
 import argparse
 import sys
-from typing import NamedTuple, Dict, Any
-from types import SimpleNamespace
+from typing import NamedTuple
 
 # Temporary logging configuration
 coloredlogs.install(level="WARN")
@@ -68,29 +67,6 @@ class Config(NamedTuple):
     docker: DockerConfig
     logLevel: LogLevelConfig
     traefik: TraefikConfig
-
-def dict_to_simplenamespace(dict_obj):
-    """
-    Recursively converts a nested dictionary into a SimpleNamespace object.
-
-    Args:
-        dict_obj (dict): The input dictionary to be converted.
-
-    Returns:
-        SimpleNamespace: The resulting SimpleNamespace object.
-    """
-    logging.info("Converting dictionary to SimpleNamespace")
-    logging.debug(f"Input dictionary: {dict_obj}")
-    if isinstance(dict_obj, dict):
-        for key, value in dict_obj.items():
-            logging.debug(f"Processing key: {key}")
-            dict_obj[key] = dict_to_simplenamespace(value)
-    elif isinstance(dict_obj, list):
-        logging.debug(f"Processing list with {len(dict_obj)} items")
-        return [dict_to_simplenamespace(item) for item in dict_obj]
-    result = SimpleNamespace(**dict_obj) if isinstance(dict_obj, dict) else dict_obj
-    logging.debug(f"Resulting SimpleNamespace or value: {result}")
-    return result
 
 def flatten_keys(d, parent_key='', sep='.'):
     """
