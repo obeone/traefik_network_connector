@@ -132,7 +132,6 @@ def parse_args(config):
         cli_key = key.replace('..', '.').lower()  # Ensure CLI arguments are lowercase
         parser.add_argument(f'--{cli_key}',
                             type=type(value),
-                            default=value,
                             help=f'Specify the {cli_key} value')
     args, unknown = parser.parse_known_args()
 
