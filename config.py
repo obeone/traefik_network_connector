@@ -113,6 +113,28 @@ def flatten_keys(d, parent_key='', sep='.'):
             items.append((new_key, v))
     return dict(items)
 
+def merge_dicts(lhs, rhs):
+    """
+    Recursively merges two dictionaries.
+    If there's a conflict, values from rhs will overwrite those from lhs.
+
+    Args:
+        lhs (dict): Left hand side dictionary to merge.
+        rhs (dict): Right hand side dictionary to merge.
+
+    Returns:
+        merged: The merged dictionary.
+    """
+    merged = lhs.copy()
+
+    for key, value in rhs.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = merge_dicts(merged[key], value)
+        else:
+            merged[key] = value
+
+    return merged
+
 def parse_args(config):
     """
     Parses command line arguments based on the configuration.
@@ -149,14 +171,15 @@ def load_config() -> Config:
     """
     logging.info("Loading configuration from file")
     with open('config.yaml', "r") as file:
-        config_data = yaml.safe_load(file)
-        logging.debug("Loaded initial configuration: %s", config_data)
+        default_config = yaml.safe_load(file)
+        logging.debug("Loaded default configuration: %s", default_config)
 
-    args = parse_args(config_data)
+    args = parse_args(default_config)
 
     if args.config:
         with open(args.config, "r") as file:
             config_data = yaml.safe_load(file)
+            config_data = merge_dicts(default_config, config_data)
             logging.info("Loaded configuration from file: %s", config_data)
 
     apply_overrides_from_env_and_cli(config_data, args)
