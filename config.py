@@ -4,8 +4,7 @@ import yaml
 import os
 import argparse
 import sys
-from typing import NamedTuple, Dict, Any
-from types import SimpleNamespace
+from typing import NamedTuple
 
 # Temporary logging configuration
 coloredlogs.install(level="WARN")
@@ -69,29 +68,6 @@ class Config(NamedTuple):
     logLevel: LogLevelConfig
     traefik: TraefikConfig
 
-def dict_to_simplenamespace(dict_obj):
-    """
-    Recursively converts a nested dictionary into a SimpleNamespace object.
-
-    Args:
-        dict_obj (dict): The input dictionary to be converted.
-
-    Returns:
-        SimpleNamespace: The resulting SimpleNamespace object.
-    """
-    logging.info("Converting dictionary to SimpleNamespace")
-    logging.debug(f"Input dictionary: {dict_obj}")
-    if isinstance(dict_obj, dict):
-        for key, value in dict_obj.items():
-            logging.debug(f"Processing key: {key}")
-            dict_obj[key] = dict_to_simplenamespace(value)
-    elif isinstance(dict_obj, list):
-        logging.debug(f"Processing list with {len(dict_obj)} items")
-        return [dict_to_simplenamespace(item) for item in dict_obj]
-    result = SimpleNamespace(**dict_obj) if isinstance(dict_obj, dict) else dict_obj
-    logging.debug(f"Resulting SimpleNamespace or value: {result}")
-    return result
-
 def flatten_keys(d, parent_key='', sep='.'):
     """
     Flattens a nested dictionary into a flat dictionary with concatenated keys.
@@ -113,6 +89,28 @@ def flatten_keys(d, parent_key='', sep='.'):
             items.append((new_key, v))
     return dict(items)
 
+def merge_dicts(lhs, rhs):
+    """
+    Recursively merges two dictionaries.
+    If there's a conflict, values from rhs will overwrite those from lhs.
+
+    Args:
+        lhs (dict): Left hand side dictionary to merge.
+        rhs (dict): Right hand side dictionary to merge.
+
+    Returns:
+        merged: The merged dictionary.
+    """
+    merged = lhs.copy()
+
+    for key, value in rhs.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = merge_dicts(merged[key], value)
+        else:
+            merged[key] = value
+
+    return merged
+
 def parse_args(config):
     """
     Parses command line arguments based on the configuration.
@@ -132,7 +130,6 @@ def parse_args(config):
         cli_key = key.replace('..', '.').lower()  # Ensure CLI arguments are lowercase
         parser.add_argument(f'--{cli_key}',
                             type=type(value),
-                            default=value,
                             help=f'Specify the {cli_key} value')
     args, unknown = parser.parse_known_args()
 
@@ -150,14 +147,15 @@ def load_config() -> Config:
     """
     logging.info("Loading configuration from file")
     with open('config.yaml', "r") as file:
-        config_data = yaml.safe_load(file)
-        logging.debug("Loaded initial configuration: %s", config_data)
+        default_config = yaml.safe_load(file)
+        logging.debug("Loaded default configuration: %s", default_config)
 
-    args = parse_args(config_data)
+    args = parse_args(default_config)
 
     if args.config:
         with open(args.config, "r") as file:
             config_data = yaml.safe_load(file)
+            config_data = merge_dicts(default_config, config_data)
             logging.info("Loaded configuration from file: %s", config_data)
 
     apply_overrides_from_env_and_cli(config_data, args)
