@@ -78,7 +78,9 @@ For a detailed explanation of all configuration options, refer to the comments w
 
 ### Command Line Arguments
 
-To override the default configuration settings, use the command line arguments using the `--key=value` (key is the YAML path) format. The YAML path is used to access the corresponding value in the configuration. For example, to override the log level, use the `--loglevel=INFO` argument. For the docker host, use the `--docker.host` argument.
+To override the default configuration settings, use the command line arguments using the `--key=value` format. The key is a YAML config path and is used to override the corresponding value in the configuration. The keys must be all lowercase.
+
+For example, to override the log level, use the `--loglevel=INFO` argument. For the docker host, use the `--docker.host` argument. For the Traefik container name use the `--traefik.containername` argument.
 
 List of available command line arguments can be found using `--help`, and explaination in the `config.yaml` file.
 
