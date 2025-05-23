@@ -19,6 +19,7 @@ This is useful if you have, for example, one traefik proxy which handle incoming
     - [Installation](#installation)
     - [Running](#running)
     - [Systemd Service Setup](#systemd-service-setup)
+  - [Docker socket proxy setup](#docker-socket-proxy-setup)
   - [How It Works](#how-it-works)
   - [TLS Configuration](#tls-configuration)
   - [FAQs / Troubleshooting](#faqs--troubleshooting)
@@ -133,6 +134,43 @@ To manage the Traefik Automatic Docker Network Connector as a service using syst
 3. Start the service: `sudo systemctl start traefik_network_connector`.
 4. Enable the service at boot: `sudo systemctl enable traefik_network_connector`.
 5. Check the service status: `sudo systemctl status traefik_network_connector`.
+
+## Docker socket proxy setup
+
+For increased security a Docker Socket proxy like [linuxserver/socket-proxy](https://github.com/linuxserver/docker-socket-proxy/pkgs/container/socket-proxy)
+can be used.
+
+Essential configuration using Docker Compose:
+
+```yaml
+services:
+  traefik-network-connector:
+    image: obeoneorg/traefik_network_connector:...
+    depends_on:
+      traefik-network-connector-docker-proxy:
+        condition: service_healthy
+    environment:
+      DOCKER_HOST: tcp://traefik-network-connector-docker-proxy:2375
+    networks:
+      - traefik-network-connector-docker-proxy
+
+  traefik-network-connector-docker-proxy:
+    environment:
+      CONTAINERS: 1
+      NETWORKS: 1
+      POST: 1
+    networks:
+      - traefik-network-connector-docker-proxy
+
+networks:
+  traefik-network-connector-docker-proxy:
+    name: traefik-network-connector-docker-proxy
+    internal: true
+```
+
+The Traefik Automatic Docker Network Connector needs read access to the `containers` (`CONTAINERS: 1`)
+and `networks` (`NETWORKS: 1`) API as well as write permissions (`POST: 1`). In case the Docker socket
+proxy exposes the Docker API via TCP, the Docker host must be configured accordingly.
 
 ## How It Works
 
