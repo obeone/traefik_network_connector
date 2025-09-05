@@ -188,7 +188,7 @@ def monitor_events():
 
     # Define the Docker events to track for managing Traefik connections
     tracked_events = {
-        "container": ["start", "die"],
+        "container": ["start", "stop", "die"],
     }
 
     # Listen to Docker events in real-time
@@ -234,9 +234,15 @@ def monitor_events():
                     app_logger.info(f"Container {container.name} is being created. Attempting to connect Traefik to relevant networks.")
                     connect_traefik_to_network(container)
 
+                elif event["Action"] == "stop":
+                    app_logger.info(
+                        f"Container {container.name} is being stopped. Attempting to disconnect Traefik from relevant networks."
+                    )
+                    disconnect_traefik_from_network(container)
+
                 elif event["Action"] == "die":
                     app_logger.info(
-                        f"Container {container.name} is being killed. Attempting to disconnect Traefik to relevant networks."
+                        f"Container {container.name} is being killed. Attempting to disconnect Traefik from relevant networks."
                     )
                     disconnect_traefik_from_network(container)
                     del container_cache[event["id"]]
