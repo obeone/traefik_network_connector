@@ -86,9 +86,9 @@ def is_traefik_running():
 
 def connect_to_all_relevant_networks():
     """
-    Connects Traefik to all networks of containers with the 'traefik.enable=true' label and ensures connection only to networks specified in the 'traefik.networkLabel' label if present.
+    Connects Traefik to all networks of containers with the monitoredLabel (see config.yaml) and ensures connection only to networks specified in the 'traefik.networkLabel' label if present.
 
-    This function iterates over all containers labeled 'traefik.enable=true'. If the container has a 'traefik.networkLabel' label, it checks if the network is listed in the label's value before connecting the Traefik container to their networks if it's not already connected. This ensures Traefik can route traffic to these containers.
+    This function iterates over all containers labeled with monitoredLabel (see config.yaml). If the container has a 'traefik.networkLabel' label, it checks if the network is listed in the label's value before connecting the Traefik container to their networks if it's not already connected. This ensures Traefik can route traffic to these containers.
     """
     if not is_traefik_running():
         app_logger.warning("Traefik is not running. Skipping network connection.")
@@ -96,7 +96,7 @@ def connect_to_all_relevant_networks():
 
     app_logger.debug("Searching for Traefik container to connect to relevant networks.")
 
-    for container in client.containers.list(filters={"label": "traefik.enable=true"}):
+    for container in client.containers.list(filters={"label": f"{config.traefik.monitoredLabel}={config.traefik.monitoredLabelCondition}"}):
         update_container_cache(container)
         connect_traefik_to_network(container)
 
@@ -164,7 +164,7 @@ def disconnect_traefik_from_network(container):
         container (docker.models.containers.Container): Container from whose network Traefik will be disconnected.
 
     This function disconnects Traefik from the network of the specified container if no other running containers
-    with the 'traefik.enable=true' label are using the same network and if Traefik is currently connected to that
+    with the monitoredLabel are using the same network and if Traefik is currently connected to that
     network. This is to ensure Traefik only remains connected to networks where it needs to route traffic.
     """
     app_logger.debug(f"Attempting to disconnect Traefik from network of container {container.name}.")
@@ -181,13 +181,13 @@ def disconnect_traefik_from_network(container):
             # Fetch all containers connected to the network
             connected_containers = network.attrs["Containers"]
 
-            # Filter for containers with 'traefik.enable=true' label, excluding the Traefik container itself
+            # Filter for containers with monitoredLabel, excluding the Traefik container itself
             # Some containers may be destroyed since we got the list, so we don't do errors on them
             relevant_containers = []
             for cid in connected_containers:
                 try:
                     container_to_check = client.containers.get(cid)
-                    if container_to_check.labels.get("traefik.enable") == "true" and cid != traefik_container.id and cid != container.id:
+                    if container_to_check.labels.get(config.traefik.monitoredLabel) == config.traefik.monitoredLabelCondition and cid != traefik_container.id and cid != container.id:
                         relevant_containers.append(cid)
                 except docker.errors.NotFound:
                     continue
