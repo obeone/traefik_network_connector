@@ -2,6 +2,18 @@ import docker
 import logging
 from config import config, app_logger
 import re
+import os
+
+# --- Version ---
+
+# Read the version from the VERSION file
+try:
+    with open("VERSION") as version_file:
+        __version__ = version_file.read().strip()
+except FileNotFoundError:
+    __version__ = "0.0.0"
+
+# --- Cache ---
 
 # Initialize the cache for container details
 container_cache = {}
@@ -248,8 +260,11 @@ def monitor_events():
                     del container_cache[event["id"]]
 
 if __name__ == "__main__":
+    # Display the version
+    print(f"Version: {__version__}")
+
     # Connect to all relevant networks on startup
     connect_to_all_relevant_networks()
 
-    # Start monitoring events loop‹≤
+    # Start monitoring events loop
     monitor_events()

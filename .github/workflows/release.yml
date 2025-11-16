@@ -1,0 +1,95 @@
+# This GitHub Actions workflow automates the release process for the project.
+# It is triggered by pushing a Git tag that adheres to the semantic versioning
+# pattern "v*.*.*" (e.g., v1.0.0, v2.1.5).
+
+# This workflow incorporates security measures:
+# 1. The 'release' job will only execute if the triggering actor is on an allow-list.
+# 2. The release creation step will only proceed if the pushed tag points to the HEAD of the 'main' branch.
+
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Trigger on semantic version tags (e.g., v1.2.3)
+
+jobs:
+  release:
+    # This job runs on the latest available version of Ubuntu.
+    runs-on: ubuntu-latest
+
+    # Define the necessary permissions for this job.
+    # 'contents: write' is crucial for creating and publishing GitHub Releases.
+    permissions:
+      contents: write
+
+    steps:
+      # Step 1: Check out the repository's code.
+      # `fetch-depth: 0` is required to retrieve the complete Git history,
+      # which is essential for accurate changelog generation and comparing commit SHAs.
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Step 2: Fetch the 'main' branch.
+      # This action is critical for obtaining the latest commit SHA of the 'origin/main'
+      # branch, which is then used for comparison against the pushed tag's SHA.
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      # Step 3: Validate release conditions: Authorized Actor and Tag on Main.
+      # This step performs essential validations to ensure that the release
+      # process only proceeds under specific, secure conditions.
+      - name: Check release conditions (Tag on main & Authorized actor)
+        id: check_conditions
+        run: |
+          TAG_SHA=$(git rev-parse ${{ github.ref }})
+          MAIN_SHA=$(git rev-parse origin/main)
+          ACTOR=${{ github.actor }}
+          
+          echo "Tag SHA: $TAG_SHA"
+          echo "Main SHA: $MAIN_SHA"
+          echo "Actor: $ACTOR"
+          
+          # --- AUTHORIZATION CHECK ---
+          # Ensures that only an explicitly authorized actor can trigger a release.
+          if [[ "$ACTOR" != "obeone" ]]; then
+            echo "::error::Actor '$ACTOR' is not authorized to create releases. Skipping release."
+            echo "authorized=false" >> $GITHUB_OUTPUT
+            exit 1 # Fail the job if the actor is unauthorized
+          fi
+          
+          # --- BRANCH CHECK ---
+          # Verifies that the pushed tag points directly to the HEAD of the 'main' branch.
+          if [ "$TAG_SHA" != "$MAIN_SHA" ]; then
+            echo "::error::Tag ${{ github.ref_name }} does not point to the HEAD of the 'main' branch. Skipping release."
+            echo "on_main=false" >> $GITHUB_OUTPUT
+            exit 1 # Fail the job if the tag is not on main
+          fi
+          
+          echo "All conditions met. Proceeding with the release process."
+          echo "authorized=true" >> $GITHUB_OUTPUT"
+          echo "on_main=true" >> $GITHUB_OUTPUT"
+
+      # Step 4: Create a GitHub Release and Generate Changelog.
+      # This step is conditionally executed only if the 'check_conditions' step
+      # successfully validated both the authorized actor and the tag's branch.
+      # The 'ncipollo/release-action' is utilized as a robust and actively maintained
+      # solution for creating releases, replacing the deprecated 'actions/create-release'.
+      - name: Create GitHub Release and Generate Changelog
+        if: steps.check_conditions.outputs.authorized == 'true' && steps.check_conditions.outputs.on_main == 'true'
+        uses: ncipollo/release-action@v1
+        with:
+          # The action automatically infers the tag name from the Git reference (github.ref_name).
+          name: Release ${{ github.ref_name }}
+          
+          # Enables the automatic generation of release notes, leveraging the action's built-in capabilities.
+          generateReleaseNotes: true
+          
+          draft: false      # Publishes the release immediately, rather than as a draft.
+          prerelease: false # Designates the release as a full, stable release.
+          
+          # The GITHUB_TOKEN is automatically provided by GitHub Actions,
+          # granting the necessary permissions for creating the release.
+          token: ${{ secrets.GITHUB_TOKEN }}
