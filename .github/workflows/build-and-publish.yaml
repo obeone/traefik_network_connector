@@ -12,6 +12,20 @@
 # - GitHub Actions cache
 # - Cosign OIDC signing for main/tag pushes
 name: Build and Push Docker (Multi-Repo Alias)
+# This workflow builds and pushes a Docker image to GHCR and Docker Hub
+# under multiple repository aliases (auto_docker_proxy and traefik_network_connector).
+#
+# Triggers:
+# 1. Push to 'main' branch (tags as 'latest')
+# 2. Push of tags 'v*.*.*' (tags as SemVer)
+# 3. Pull Requests (builds 'pr-XXX' tag, only if author is trusted or PR is approved)
+#
+# Features:
+# - Multi-platform build
+# - Multi-registry push (GHCR & Docker Hub)
+# - GitHub Actions cache
+# - Cosign OIDC signing for main/tag pushes
+name: Build and Push Docker (Multi-Repo Alias)
 
 on:
   push:
@@ -19,15 +33,19 @@ on:
       - main
     tags:
       - 'v*.*.*' # Trigger on version tags like v1.0.0
+    tags:
+      - 'v*.*.*' # Trigger on version tags like v1.0.0
   pull_request:
     types: [opened, synchronize, reopened]
 
 jobs:
   build-push-sign:
+  build-push-sign:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write # Required for OIDC signing
       id-token: write # Required for OIDC signing
 
     steps:
@@ -51,13 +69,25 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # --- PR Security Checks (Start) ---
+      # --- PR Security Checks (Start) ---
       - name: Determine if PR author is trusted
         if: ${{ github.event_name == 'pull_request' }}
         id: check-author
         shell: bash
+        shell: bash
         run: |
           # Define a list of trusted authors. Consider using a GitHub Team for larger projects.
+          # Define a list of trusted authors. Consider using a GitHub Team for larger projects.
           trusted_authors=("obeone")
+          trusted="false"
+          for author in "${trusted_authors[@]}"; do
+            if [[ "$author" == "$GITHUB_ACTOR" ]]; then
+              trusted="true"
+              break
+            fi
+          done
+          echo "Author ($GITHUB_ACTOR) trusted: $trusted"
+          echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
           trusted="false"
           for author in "${trusted_authors[@]}"; do
             if [[ "$author" == "$GITHUB_ACTOR" ]]; then
@@ -79,7 +109,13 @@ jobs:
           APPROVALS=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews \
             --jq '.[] | select(.state=="APPROVED" and (.author_association=="OWNER" or .author_association=="MEMBER")) | .user.login')
 
+          # Check for approval by an organization OWNER or MEMBER.
+          APPROVALS=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews \
+            --jq '.[] | select(.state=="APPROVED" and (.author_association=="OWNER" or .author_association=="MEMBER")) | .user.login')
+
           if [[ -n "$APPROVALS" ]]; then
+            echo "PR is approved by an organization member: $APPROVALS"
+            echo "approved=true" >> "$GITHUB_OUTPUT"
             echo "PR is approved by an organization member: $APPROVALS"
             echo "approved=true" >> "$GITHUB_OUTPUT"
           else
@@ -155,6 +191,7 @@ jobs:
 
       - name: Set up cosign
         if: steps.gatekeeper.outputs.run_build == 'true'
+        if: steps.gatekeeper.outputs.run_build == 'true'
         uses: sigstore/cosign-installer@v3
 
       - name: Sign the container image with cosign
@@ -165,8 +202,16 @@ jobs:
             github.event_name == 'push' &&
             (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
           }}
+        # This step only signs official images, which are those built from 'main' branch pushes or tag pushes.
+        if: >-
+          ${{
+            steps.gatekeeper.outputs.run_build == 'true' &&
+            github.event_name == 'push' &&
+            (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+          }}
         env:
           COSIGN_EXPERIMENTAL: true
+          # Retrieve the image digest from the previous build step.
           # Retrieve the image digest from the previous build step.
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
         shell: bash
