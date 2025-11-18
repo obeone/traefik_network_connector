@@ -12,7 +12,7 @@ This is useful if you have, for example, one traefik proxy which handle incoming
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Requirements](#requirements)
-  - [Usage](#usage)
+  - [Quick start](#quick-start)
   - [Configuration](#configuration)
     - [Configuration File](#configuration-file)
     - [Command Line Arguments](#command-line-arguments)
@@ -23,6 +23,8 @@ This is useful if you have, for example, one traefik proxy which handle incoming
     - [Systemd Service Setup](#systemd-service-setup)
   - [Docker socket proxy setup](#docker-socket-proxy-setup)
   - [How It Works](#how-it-works)
+  - [Versioning & Release process](#versioning--release-process)
+  - [Docker images](#docker-images)
   - [TLS Configuration](#tls-configuration)
   - [FAQs / Troubleshooting](#faqs--troubleshooting)
   - [Contributing](#contributing)
@@ -45,7 +47,7 @@ If you want to run it outside containers, make sure you have the following insta
 - Python 3.6+
 - See `requirements.txt` for details.
 
-## Usage
+## Quick start
 
 Start the container :
 
@@ -57,7 +59,7 @@ docker run -d \
   obeoneorg/traefik_network_connector:latest
 ```
 
-And it's ok !
+The application version running inside the container is available through the `APP_VERSION` environment variable.
 
 For more details about the configuration options, refer to the [Configuration](#configuration) section.
 
@@ -181,6 +183,41 @@ proxy exposes the Docker API via TCP, the Docker host must be configured accordi
 - **Monitoring Docker Events**: Listens for creation and destruction events of containers and manages network connections accordingly.
 - **Connecting Traefik**: When a container with the specified label is created, it connects Traefik to its network if not already connected. If a config specified label is present (default is `autoproxy.networks`) only these networks will be connected to.
 - **Disconnecting Traefik**: If a container is destroyed, it checks if Traefik should be disconnected from its network, based on other containers' usage of the network.
+
+## Versioning & Release process
+
+This project follows semantic versioning. The release process is automated using GitHub Actions.
+
+- The version is managed in the `VERSION` file in the format `X.Y.Z`.
+- To bump the version, use the [`scripts/bump-version.sh`](./scripts/bump-version.sh:0) script. This script updates the `VERSION` file, commits the change, and creates a new Git tag.
+  ```bash
+  # Usage: ./scripts/bump-version.sh [major|minor|patch]
+  ./scripts/bump-version.sh minor
+  ```
+- Pushing a tag in the format `vX.Y.Z` (e.g., `v1.2.3`) triggers the [`.github/workflows/release.yml`](./.github/workflows/release.yml:0) workflow.
+- The workflow automatically builds and pushes a multi-platform Docker image to Docker Hub and creates a new GitHub Release.
+
+## Docker images
+
+Docker images are stored on [Docker Hub](https://hub.docker.com/r/obeoneorg/auto-docker-proxy).
+
+- **Pulling an image:**
+  ```bash
+  docker pull obeoneorg/auto-docker-proxy:v1.2
+  ```
+- **Tagging strategy:** For a release `v1.2.3`, the following tags are generated:
+  - `v1.2.3`, `1.2.3`
+  - `v1.2`, `1.2`
+  - `v1`, `1`
+  - `latest`
+- **Using the version in `docker-compose`:** The application version is passed as a build argument to the Docker image and is available as an environment variable `APP_VERSION`. You can use it in your `docker-compose.yaml` file like this:
+  ```yaml
+  services:
+    my-service:
+      image: obeoneorg/auto-docker-proxy:v1.2.3
+      environment:
+        - VERSION=${APP_VERSION}
+  ```
 
 ## TLS Configuration
 
