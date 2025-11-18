@@ -50,3 +50,6 @@ venv.bak/
 # Misc
 .history
 /test
+
+# Claude
+/.claude
