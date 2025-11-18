@@ -124,7 +124,7 @@ jobs:
             docker.io/obeoneorg/traefik_network_connector
           tags: |
             # For pushes to the 'main' branch, tag the image as 'latest'.
-            type=ref,event=branch,enable=${{ github.ref_name == 'main' }},prefix=,suffix=latest
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
             # For 'v*.*.*' tags, generate SemVer tags (e.g., v1.2.3, v1.2, v1).
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -135,7 +135,7 @@ jobs:
       - name: Build and push (multi-repo)
         if: steps.gatekeeper.outputs.run_build == 'true'
         id: build-and-push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
@@ -144,8 +144,7 @@ jobs:
             linux/amd64
             linux/arm64
             linux/i386
-            linux/armhf
-            linux/armel
+            linux/arm/v7
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

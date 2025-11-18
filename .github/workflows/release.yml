@@ -69,8 +69,8 @@ jobs:
           fi
           
           echo "All conditions met. Proceeding with the release process."
-          echo "authorized=true" >> $GITHUB_OUTPUT"
-          echo "on_main=true" >> $GITHUB_OUTPUT"
+          echo "authorized=true" >> $GITHUB_OUTPUT
+          echo "on_main=true" >> $GITHUB_OUTPUT
 
       # Step 4: Create a GitHub Release and Generate Changelog.
       # This step is conditionally executed only if the 'check_conditions' step
@@ -83,13 +83,35 @@ jobs:
         with:
           # The action automatically infers the tag name from the Git reference (github.ref_name).
           name: Release ${{ github.ref_name }}
-          
+
           # Enables the automatic generation of release notes, leveraging the action's built-in capabilities.
           generateReleaseNotes: true
-          
+
+          # Add Docker image links to release body
+          body: |
+            ## Docker Images
+
+            This release is available as multi-platform Docker images on both GitHub Container Registry and Docker Hub:
+
+            ### GitHub Container Registry (GHCR)
+            ```bash
+            docker pull ghcr.io/obeone/auto_docker_proxy:${{ github.ref_name }}
+            docker pull ghcr.io/obeone/traefik_network_connector:${{ github.ref_name }}
+            ```
+
+            ### Docker Hub
+            ```bash
+            docker pull obeoneorg/auto_docker_proxy:${{ github.ref_name }}
+            docker pull obeoneorg/traefik_network_connector:${{ github.ref_name }}
+            ```
+
+            **Supported Platforms:** linux/amd64, linux/arm64, linux/arm/v7
+
+            All images are signed with [Cosign](https://github.com/sigstore/cosign) for supply chain security.
+
           draft: false      # Publishes the release immediately, rather than as a draft.
           prerelease: false # Designates the release as a full, stable release.
-          
+
           # The GITHUB_TOKEN is automatically provided by GitHub Actions,
           # granting the necessary permissions for creating the release.
           token: ${{ secrets.GITHUB_TOKEN }}
