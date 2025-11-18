@@ -158,7 +158,9 @@ def connect_traefik_to_network(container):
                     app_logger.debug(f"Adjusted allowed network to {real_network}.")
 
         # Connect Traefik to the network if allowed, or log that it's skipping the connection
-        if (allowed_networks == [''] or net in allowed_networks) and net.lower() != 'host':
+        if net.lower() == 'host':
+            app_logger.warning(f"Skipping connection to 'host' network for security reasons. Container: {container.name}")
+        elif allowed_networks == [''] or net in allowed_networks:
             if net not in traefik_container.attrs["NetworkSettings"]["Networks"]:
                 app_logger.debug(f"Connecting Traefik to network {net}.")
                 network.connect(traefik_container)
@@ -268,14 +270,14 @@ def monitor_events():
                     f"Container {container.name} is being stopped. Attempting to disconnect Traefik from relevant networks."
                 )
                 disconnect_traefik_from_network(container)
-                del container_cache[event["id"]]
+                container_cache.pop(event["id"], None)
 
             elif event["Action"] == "die":
                 app_logger.info(
                     f"Container {container.name} is being killed. Attempting to disconnect Traefik from relevant networks."
                 )
                 disconnect_traefik_from_network(container)
-                del container_cache[event["id"]]
+                container_cache.pop(event["id"], None)
 
 if __name__ == "__main__":
     # Display the version

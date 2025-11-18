@@ -185,6 +185,15 @@ def load_config() -> Config:
         general=config_data["logLevel"]["general"],
         application=config_data["logLevel"]["application"])
 
+    # Validate Traefik configuration
+    if not config_data["traefik"]["monitoredLabel"]:
+        logging.critical("traefik.monitoredLabel cannot be empty. Exiting program.")
+        sys.exit(1)
+
+    if not config_data["traefik"]["monitoredLabelCondition"]:
+        logging.critical("traefik.monitoredLabelCondition cannot be empty. Exiting program.")
+        sys.exit(1)
+
     traefik: TraefikConfig = TraefikConfig(
         containerName=config_data["traefik"]["containerName"],
         monitoredLabel=config_data["traefik"]["monitoredLabel"],
