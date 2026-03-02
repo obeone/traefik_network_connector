@@ -53,3 +53,4 @@ venv.bak/
 
 # Misc
 .history
+.worktrees
