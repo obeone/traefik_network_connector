@@ -213,19 +213,27 @@ def monitor_events():
             app_logger.warning("Traefik is not running. Skipping event handling.")
             continue
 
+        # Extract the container ID from the event.
+        # The top-level "id" field is deprecated since Docker Engine API 1.47 in favour of Actor.ID.
+        # We prefer Actor.ID and fall back to the legacy field for older engines.
+        container_id = event.get("Actor", {}).get("ID") or event.get("id")
+        if not container_id:
+            app_logger.warning("Received container event without a resolvable container ID. Skipping.")
+            continue
+
         # Update the container cache on every container event (can be manual connection to network for example)
-        update_container_cache(event["id"])
+        update_container_cache(container_id)
 
         # Check if the event is relevant for network management
         if event["Type"] in tracked_events and event["Action"] in tracked_events[event["Type"]]:
             # Fetch the container from the cache or None if not found
-            container = container_cache[event["id"]] if event["id"] in container_cache else None
+            container = container_cache[container_id] if container_id in container_cache else None
 
-            app_logger.debug(f"Event detected: {event['Action']} on container {container.name if container else event['id']} with ID {event['id']}.")
+            app_logger.debug(f"Event detected: {event['Action']} on container {container.name if container else container_id} with ID {container_id}.")
 
             # Skip further processing if the container is not found or Traefik is not running
             if container is None:
-                app_logger.warning(f"Container {event['id']} not found. Skipping event handling.")
+                app_logger.warning(f"Container {container_id} not found. Skipping event handling.")
                 continue
 
             # Define the monitored label pattern
@@ -257,7 +265,7 @@ def monitor_events():
                         f"Container {container.name} is being killed. Attempting to disconnect Traefik from relevant networks."
                     )
                     disconnect_traefik_from_network(container)
-                    del container_cache[event["id"]]
+                    del container_cache[container_id]
 
 if __name__ == "__main__":
     # Display the version
