@@ -1,55 +1,153 @@
-# Traefik Automatic Docker Network Connector
+# Traefik Network Connector
 
+![Python](https://img.shields.io/badge/Python-3.6+-blue?logo=python&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker&logoColor=white)
+![Platforms](https://img.shields.io/badge/Platforms-amd64%20%7C%20arm64%20%7C%20arm%2Fv7-lightgrey)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/obeone/traefik_network_connector)
 
-This project automates the process of connecting the Traefik reverse proxy to Docker container networks dynamically. It listens for Docker events and manages Traefik's network connections to ensure it can reverse proxy for containers labeled for Traefik management.
+Automatically connects Traefik to the right Docker networks —
+no shared network, no manual intervention.
 
-This is useful if you have, for example, one traefik proxy which handle incoming requests for multiple docker compose services. It will only to the needed networks (ie the one whith traefik labels) without the need of a common traefik network for all services, which break the isolation principal.
+---
 
-## Table of Contents
+## 🤔 Why this exists
 
-- [Traefik Automatic Docker Network Connector](#traefik-automatic-docker-network-connector)
-  - [Table of Contents](#table-of-contents)
-  - [Features](#features)
-  - [Requirements](#requirements)
-  - [Quick start](#quick-start)
-  - [Configuration](#configuration)
-    - [Configuration File](#configuration-file)
-    - [Command Line Arguments](#command-line-arguments)
-    - [Environment Variables](#environment-variables)
-  - [Usage as a system daemon](#usage-as-a-system-daemon)
-    - [Installation](#installation)
-    - [Running](#running)
-    - [Systemd Service Setup](#systemd-service-setup)
-  - [Docker socket proxy setup](#docker-socket-proxy-setup)
-  - [How It Works](#how-it-works)
-  - [Versioning & Release process](#versioning--release-process)
-  - [Docker images](#docker-images)
-  - [TLS Configuration](#tls-configuration)
-  - [FAQs / Troubleshooting](#faqs--troubleshooting)
-  - [Contributing](#contributing)
-  - [Author](#author)
+With Traefik and multiple Docker Compose stacks, Traefik must be on the
+same network as each proxied container. The usual fix is a single shared
+network for everything — but that kills isolation between stacks.
 
-## Features
+**This daemon solves that.** It listens to Docker events and
+automatically connects (and disconnects) Traefik to the right networks
+as containers start and stop.
 
-- 🌐 **Automatic Network Connection**: Automatically connects Traefik to the networks of newly created containers that are labeled for Traefik. Ability to indicate which networks to connect to.
-- 🔌 **Intelligent Network Disconnection**: Disconnects Traefik from networks of containers that are no longer running, ensuring a clean and efficient network setup.
-- ⚙️ **Dynamic Configuration**: Utilizes a YAML configuration file, CLI arguments and/or environment variables for easy setup and adjustments without needing to alter the source code.
-- 🔒 **TLS Support**: Secure your Docker API communication by specifying TLS configuration details.
-- 🐳 **Run in cohtainer**: Run this tool directly as a container to easy integration in your project.
+---
 
-## Requirements
+## 🚀 Quick start
 
-- Docker
+Create a `docker-compose.yaml` for your Traefik stack:
 
-If you want to run it outside containers, make sure you have the following installed:
+```yaml
+services:
+  traefik:
+    image: traefik:v3
+    container_name: traefik
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=you@example.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./letsencrypt:/letsencrypt
 
-- Python 3.6+
-- See `requirements.txt` for details.
+  traefik-network-connector:
+    image: obeoneorg/traefik_network_connector:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TRAEFIK_CONTAINERNAME: traefik   # must match container_name above
+    restart: unless-stopped
+```
 
-## Quick start
+```bash
+docker compose up -d
+```
 
-Start the container :
+Done. ✅ The connector is now watching Docker events.
+
+---
+
+## 📦 Using it in your app stacks
+
+In **any other Compose stack**, just add `traefik.enable=true`:
+
+```yaml
+# ~/myapp/docker-compose.yaml
+services:
+  web:
+    image: myapp:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.myapp.rule=Host(`myapp.${DOMAIN}`)"
+      - "traefik.http.routers.myapp.entrypoints=websecure"
+      - "traefik.http.routers.myapp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.myapp.loadbalancer.server.port=8080"
+```
+
+```bash
+# in ~/myapp/
+docker compose up -d
+# → Traefik is automatically connected to myapp's network 🎉
+# → When you stop it, Traefik disconnects automatically
+```
+
+### 🎯 Targeting a specific network
+
+If a container has multiple networks, you can restrict which one Traefik
+connects to:
+
+```yaml
+labels:
+  - "traefik.enable=true"
+  - "traefik.docker.network=myapp_frontend"
+  - "traefik.http.routers.myapp.rule=Host(`myapp.${DOMAIN}`)"
+  - "traefik.http.routers.myapp.entrypoints=websecure"
+  - "traefik.http.routers.myapp.tls.certresolver=letsencrypt"
+  - "traefik.http.services.myapp.loadbalancer.server.port=8080"
+```
+
+> ⚠️ Docker Compose prefixes network names with the project name.
+> A network named `frontend` in a project folder `myapp` becomes
+> `myapp_frontend`.
+
+---
+
+## ⚙️ Configuration
+
+Settings are loaded in this priority order (highest wins):
+
+```text
+CLI arguments  >  environment variables  >  config.yaml
+```
+
+### Main options
+
+| Option | Env variable | CLI flag | Default |
+| --- | --- | --- | --- |
+| Traefik container name | `TRAEFIK_CONTAINERNAME` | `--traefik.containername` | `traefik` |
+| Docker socket/host | `DOCKER_HOST` | `--docker.host` | Unix socket |
+| App log level | `LOGLEVEL_APPLICATION` | `--loglevel.application` | `DEBUG` |
+| Monitored label (regex) | `TRAEFIK_MONITOREDLABEL` | `--traefik.monitoredlabel` | `^traefik.enable$` |
+| Network label | `TRAEFIK_NETWORKLABEL` | `--traefik.networklabel` | `traefik.docker.network` |
+
+### config.yaml (full reference)
+
+```yaml
+docker:
+  host: "unix:///var/run/docker.sock"
+  tls:
+    enabled: false
+    verify: "/path/to/ca.pem"
+    cert: "/path/to/cert.pem"
+    key: "/path/to/key.pem"
+
+logLevel:
+  general: "INFO"       # third-party libraries
+  application: "DEBUG"  # this daemon
+
+traefik:
+  containerName: "traefik"
+  monitoredLabel: "^traefik.enable$"
+  # networkLabel: "traefik.docker.network"  # default, rarely changed
+```
+
+Mount it into the container:
 
 ```bash
 docker run -d \
@@ -59,214 +157,165 @@ docker run -d \
   obeoneorg/traefik_network_connector:latest
 ```
 
-The application version running inside the container is available through the `APP_VERSION` environment variable.
+Run `python main.py --help` for the full list of CLI flags.
 
-For more details about the configuration options, refer to the [Configuration](#configuration) section.
+---
 
-## Configuration
+## 🔐 Security: Docker socket proxy (optional)
 
-### Configuration File
-
-Modify `config.yaml` to adjust the Traefik container name, the label to monitor, and other settings. Key configuration options include:
-
-- `traefik.containerName`: Name of the Traefik container in Docker.
-- `logLevel`: Adjust the verbosity of the script's output.
-- `traefik.monitoredLabel`: Docker label that triggers network connection actions. (DEPRECATED ! Directly use `traefik.docker.network` instead in Traefik 2.0+)
-
-> :warning: **Take care !**
-> @ If you use `traefik.monitoredLabel`, you just have to give the network name in your compose file.
-> But if you use `traefik.docker.network`, you need to prefix the network name (for the example, let's say `mynetwork`) with your deployment name (for example, you run `docker compose up` in a directory named `foo`, your network name will be `foo_mynetwork`).
-> I don't understand why me, a single developer without special knowledge about docker, I was able to detect the compose name, but not Traefik...
-> So you can't use a same compose for multiple deployment, it's kind of ridiculous, but I didn't find an elegant solution... (Il you have an idea, contact me !)
-
-For a detailed explanation of all configuration options, refer to the comments within `config.yaml`.
-
-### Command Line Arguments
-
-To override the default configuration settings, use the command line arguments using the `--key=value` format. The key is a YAML config path and is used to override the corresponding value in the configuration. The keys must be all lowercase.
-
-For example, to override the log level, use the `--loglevel=INFO` argument. For the docker host, use the `--docker.host` argument. For the Traefik container name use the `--traefik.containername` argument.
-
-List of available command line arguments can be found using `--help`, and explaination in the `config.yaml` file.
-
-### Environment Variables
-
-To override the default configuration settings, you can also use the environment variables (as for command line arguments above, key is the YAML path but using `_` instead of `.`). For example, to override the docker host, use the `DOCKER_HOST` environment variable.
-
-## Usage as a system daemon
-
-### Installation
-
-To get started with the Traefik Network Connector, follow these steps:
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/obeone/traefik_network_connector.git
-   ```
-
-2. Navigate to the cloned directory:
-
-   ```bash
-   cd traefik_network_connector
-   ```
-
-3. Install the required dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Running
-
-To use the Traefik Automatic Docker Network Connector, follow these steps:
-
-1. Ensure Docker is running and you have the necessary permissions to interact with Docker's API.
-2. Configure settings [the way you like](#configuration).
-3. Run the script:
-
-   ```bash
-   python main.py --config=<path_to_your_config.yaml>
-   ```
-
-   If the `--config` argument is omitted, the script defaults to using `config.yaml` in the current directory.
-
-### Systemd Service Setup
-
-To manage the Traefik Automatic Docker Network Connector as a service using systemd, follow these steps:
-
-1. Place the `traefik_network_connector.service` file in `/etc/systemd/system/`.
-2. Reload the systemd daemon: `sudo systemctl daemon-reload`.
-3. Start the service: `sudo systemctl start traefik_network_connector`.
-4. Enable the service at boot: `sudo systemctl enable traefik_network_connector`.
-5. Check the service status: `sudo systemctl status traefik_network_connector`.
-
-## Docker socket proxy setup
-
-For increased security a Docker Socket proxy like [linuxserver/socket-proxy](https://github.com/linuxserver/docker-socket-proxy/pkgs/container/socket-proxy)
-can be used.
-
-Essential configuration using Docker Compose:
+Mounting `/var/run/docker.sock` gives full Docker access. Limit exposure
+with a socket proxy:
 
 ```yaml
 services:
   traefik-network-connector:
-    image: obeoneorg/traefik_network_connector:...
+    image: obeoneorg/traefik_network_connector:latest
     depends_on:
-      traefik-network-connector-docker-proxy:
+      docker-proxy:
         condition: service_healthy
     environment:
-      DOCKER_HOST: tcp://traefik-network-connector-docker-proxy:2375
+      DOCKER_HOST: tcp://docker-proxy:2375
     networks:
-      - traefik-network-connector-docker-proxy
+      - connector-net
 
-  traefik-network-connector-docker-proxy:
+  docker-proxy:
+    image: ghcr.io/linuxserver/socket-proxy:latest
     environment:
-      CONTAINERS: 1
-      NETWORKS: 1
-      POST: 1
+      CONTAINERS: 1   # read container info
+      NETWORKS: 1     # read network info
+      POST: 1         # allow connect/disconnect calls
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
-      - traefik-network-connector-docker-proxy
+      - connector-net
 
 networks:
-  traefik-network-connector-docker-proxy:
-    name: traefik-network-connector-docker-proxy
+  connector-net:
     internal: true
 ```
 
-The Traefik Automatic Docker Network Connector needs read access to the `containers` (`CONTAINERS: 1`)
-and `networks` (`NETWORKS: 1`) API as well as write permissions (`POST: 1`). In case the Docker socket
-proxy exposes the Docker API via TCP, the Docker host must be configured accordingly.
+---
 
-## How It Works
+## 🔒 TLS (optional)
 
-- **Monitoring Docker Events**: Listens for creation and destruction events of containers and manages network connections accordingly.
-- **Connecting Traefik**: When a container with the specified label is created, it connects Traefik to its network if not already connected. If a config specified label is present (default is `autoproxy.networks`) only these networks will be connected to.
-- **Disconnecting Traefik**: If a container is destroyed, it checks if Traefik should be disconnected from its network, based on other containers' usage of the network.
-
-## Versioning & Release process
-
-This project follows semantic versioning. The release process is automated using GitHub Actions.
-
-- The version is managed in the `VERSION` file in the format `X.Y.Z`.
-- To bump the version, use the [`scripts/bump-version.sh`](./scripts/bump-version.sh:0) script. This script updates the `VERSION` file, commits the change, and creates a new Git tag.
-  ```bash
-  # Usage: ./scripts/bump-version.sh [major|minor|patch]
-  ./scripts/bump-version.sh minor
-  ```
-- Pushing a tag in the format `vX.Y.Z` (e.g., `v1.2.3`) triggers the [`.github/workflows/release.yml`](./.github/workflows/release.yml:0) workflow.
-- The workflow automatically builds and pushes a multi-platform Docker image to Docker Hub and creates a new GitHub Release.
-
-## Docker images
-
-Docker images are stored on [Docker Hub](https://hub.docker.com/r/obeoneorg/auto-docker-proxy).
-
-- **Pulling an image:**
-  ```bash
-  docker pull obeoneorg/auto-docker-proxy:v1.2
-  ```
-- **Tagging strategy:** For a release `v1.2.3`, the following tags are generated:
-  - `v1.2.3`, `1.2.3`
-  - `v1.2`, `1.2`
-  - `v1`, `1`
-  - `latest`
-- **Using the version in `docker-compose`:** The application version is passed as a build argument to the Docker image and is available as an environment variable `APP_VERSION`. You can use it in your `docker-compose.yaml` file like this:
-  ```yaml
-  services:
-    my-service:
-      image: obeoneorg/auto-docker-proxy:v1.2.3
-      environment:
-        - VERSION=${APP_VERSION}
-  ```
-
-## TLS Configuration
-
-To ensure secure communication with the Docker server, configure the following TLS settings in `config.yaml`:
+Only needed when your Docker daemon is exposed over TCP with TLS:
 
 ```yaml
 docker:
-  host: "tcp://<your_docker_host>:2376"  # Replace with your Docker host and port
+  host: "tcp://your-docker-host:2376"
   tls:
-    verify: "/path/to/ca.pem"  # Path to CA certificate for TLS verification
-    cert: "/path/to/cert.pem"  # Path to client certificate for TLS
-    key: "/path/to/key.pem"  # Path to client key for TLS
+    enabled: true
+    verify: "/path/to/ca.pem"
+    cert: "/path/to/cert.pem"
+    key: "/path/to/key.pem"
 ```
 
-## FAQs / Troubleshooting
+---
 
-This section addresses common issues and questions:
+## 🖥️ Systemd service (optional)
 
-- **Q: How do I resolve Docker API communication errors?**
-  - A: If you are using TCP connections, ensure your Docker daemon is configured to allow secure connections and that your `config.yaml` (or CLI/Environment variable) TLS settings are correct.
+```bash
+# Edit paths inside the .service file first
+sudo cp traefik_network_connector.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now traefik_network_connector
+sudo systemctl status traefik_network_connector
+```
 
-- **Q: What if Traefik is not connecting to a container's network?**
-  - A: Verify that the container has the correct label to be monitored as specified in your config.yaml and that Traefik is running an its name is properly set in your configuration. Also, check the logs.
+---
 
-- **Q: How can I debug connection issues between Traefik and Docker containers?**
-  - A: Increase the `logLevel`to `DEBUG` to get more detailed output from the script. This can provide insights into the connection process and where it might be failing.
+## 🐳 Docker images
 
-- **Q: How do I override configuration settings?**
-  - **A:** You can override settings using command line arguments as detailed in the Usage section. Each configuration in `config.yaml` can be overridden by an equivalent command line argument or environment variable, see [Configuration Settings](#configuration).
+Images are published on
+[Docker Hub](https://hub.docker.com/r/obeoneorg/traefik_network_connector)
+and
+[GHCR](https://ghcr.io/obeone/traefik_network_connector).
 
-- **Q: What is the priority for configuration settings?**
-  - **A:** Command line arguments have the highest priority, followed by environment variables, and then the default settings in `config.yaml`.
+Available image names:
 
-- **Q: How can I debug issues with incorrect configuration values?**
-  - **A:** Ensure that your command line arguments and environment variables are correctly formatted and match the expected patterns. Use the `--help` option with the script to see available command line arguments.
+- `obeoneorg/traefik_network_connector`
+- `obeoneorg/auto_docker_proxy`
+- `ghcr.io/obeone/traefik_network_connector`
+- `ghcr.io/obeone/auto_docker_proxy`
 
-- **Q: How can I specify the networks Traefik should connect to?**
-  - **A:** It was easy, but... Look at [Configuration](#configuration).
+Tag strategy for release `v1.2.3`:
 
-## Contributing
+| Tag | Meaning |
+| --- | --- |
+| `latest` | Latest stable |
+| `v1.2.3` / `1.2.3` | Exact release |
+| `v1.2` / `1.2` | Latest patch |
+| `v1` / `1` | Latest minor |
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue for any bugs or feature requests. Before contributing, please read through existing issues and pull requests to ensure that your contribution is unique and beneficial.
+Platforms: `linux/amd64`, `linux/arm64`, `linux/arm/v7`,
+`linux/arm/v6`, `linux/i386`.
 
-## Author
+The `APP_VERSION` environment variable inside the container holds the
+running version.
 
-For support or queries, please open an issue on this repository. We aim to respond as quickly as possible to all inquiries.
+---
 
-👾 **obeone**
+## 🔍 How it works
 
-Primarily powered by my new brain, GPT-4o, with some crucial tweaks and oversight from my secondary brain.
+```mermaid
+flowchart TB
+    A[Container starts] --> B{traefik.enable=true?}
+    B -- No --> C[Ignore]
+    B -- Yes --> D{traefik.docker.network\nset?}
+    D -- Yes --> E[Connect Traefik to\nthat specific network]
+    D -- No --> F[Connect Traefik to\nall container networks]
+    G[Container stops] --> H{Other labeled containers\non the same network?}
+    H -- Yes --> I[Keep Traefik connected]
+    H -- No --> J[Disconnect Traefik\nfrom that network]
+```
 
-Check out more of my work on [GitHub](https://github.com/obeone).
+At startup, the daemon also scans all **already-running** containers and
+connects Traefik to any it missed.
+
+---
+
+## 📌 Versioning
+
+```bash
+# Bump version, commit, and create a git tag
+./scripts/bump-version.sh [major|minor|patch]
+
+# Then push the tag to trigger the CI release
+git push --follow-tags
+```
+
+---
+
+## 🩺 Troubleshooting
+
+**Traefik isn't connecting to my container?**
+
+- Check `traefik.enable=true` is on the container.
+- Check `TRAEFIK_CONTAINERNAME` matches your actual Traefik container
+  name (`docker ps`).
+- Set `LOGLEVEL_APPLICATION=DEBUG` and read the logs:
+  `docker logs traefik_network_connector`.
+
+**Nothing happens at all?**
+
+- Make sure the Docker socket is mounted (or the proxy is reachable).
+- Check `docker logs traefik_network_connector` for connection errors.
+
+**Traefik connects to the wrong network?**
+
+- Add the `traefik.docker.network` label with the full network name
+  (including the Compose project prefix).
+
+---
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome on
+[GitHub](https://github.com/obeone/traefik_network_connector).
+Check existing issues before opening a new one.
+
+---
+
+## 👾 Author
+
+**obeone** — <https://github.com/obeone>
