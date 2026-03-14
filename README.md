@@ -122,6 +122,7 @@ CLI arguments  >  environment variables  >  config.yaml
 | --- | --- | --- | --- |
 | Traefik container name | `TRAEFIK_CONTAINERNAME` | `--traefik.containername` | `traefik` |
 | Docker socket/host | `DOCKER_HOST` | `--docker.host` | Unix socket |
+| General log level | `LOGLEVEL` | `--loglevel.general` | `INFO` |
 | App log level | `LOGLEVEL_APPLICATION` | `--loglevel.application` | `DEBUG` |
 | Monitored label (regex) | `TRAEFIK_MONITOREDLABEL` | `--traefik.monitoredlabel` | `^traefik.enable$` |
 | Network label | `TRAEFIK_NETWORKLABEL` | `--traefik.networklabel` | `traefik.docker.network` |
@@ -138,7 +139,7 @@ docker:
     key: "/path/to/key.pem"
 
 logLevel:
-  general: "INFO"       # third-party libraries
+  general: "INFO"       # third-party libraries (env: LOGLEVEL or LOGLEVEL_GENERAL)
   application: "DEBUG"  # this daemon
 
 traefik:
