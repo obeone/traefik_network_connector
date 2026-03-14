@@ -69,8 +69,8 @@ jobs:
           fi
           
           echo "All conditions met. Proceeding with the release process."
-          echo "authorized=true" >> $GITHUB_OUTPUT"
-          echo "on_main=true" >> $GITHUB_OUTPUT"
+          echo "authorized=true" >> $GITHUB_OUTPUT
+          echo "on_main=true" >> $GITHUB_OUTPUT
 
       # Step 4: Create a GitHub Release and Generate Changelog.
       # This step is conditionally executed only if the 'check_conditions' step
