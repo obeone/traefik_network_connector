@@ -54,7 +54,7 @@ The entire application is two Python files:
 
 Three-layer priority (lowest to highest): `config.yaml` → environment variables → CLI arguments.
 
-Environment variables use `_` as separator (e.g., `DOCKER_HOST`, `TRAEFIK_CONTAINERNAME`). CLI arguments use `.` separator with `--` prefix (e.g., `--docker.host`, `--traefik.containername`).
+Environment variables use `_` as separator (e.g., `DOCKER_HOST`, `TRAEFIK_CONTAINERNAME`). CLI arguments use `.` separator with `--` prefix (e.g., `--docker.host`, `--traefik.containername`). The general log level can be set via the shorthand `LOGLEVEL` env var (`LOGLEVEL_GENERAL` is also supported for backward compatibility).
 
 ## Versioning & CI/CD
 
