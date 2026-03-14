@@ -218,6 +218,13 @@ def apply_overrides_from_env_and_cli(config, args):
 
     apply_overrides(config)
 
+    # Support LOGLEVEL as a shorthand for LOGLEVEL_GENERAL (backward compatible)
+    loglevel_env = os.environ.get("LOGLEVEL")
+    if loglevel_env is not None and "logLevel" in config:
+        # LOGLEVEL_GENERAL takes priority over LOGLEVEL if both are set
+        if "LOGLEVEL_GENERAL" not in {k.upper() for k in os.environ}:
+            config["logLevel"]["general"] = loglevel_env
+
 def init_loggers(config: Config) -> logging.Logger:
     """
     Initializes logging based on the configuration.

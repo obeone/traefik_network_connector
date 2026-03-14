@@ -20,6 +20,7 @@ docker:
 # Logging Configuration (Possible values : "DEBUG", "INFO", "WARN", "ERROR", "FATAL")
 logLevel:
   # General logging level for all libraries etc
+  # Environment variable: LOGLEVEL (or LOGLEVEL_GENERAL for backward compatibility)
   general: "INFO"
   # This application specific logging level
   application: "DEBUG"
