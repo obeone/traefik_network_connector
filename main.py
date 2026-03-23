@@ -106,6 +106,13 @@ def connect_traefik_to_network(container):
     # Retrieve allowed networks from the container's labels, if specified
     allowed_networks_label = container.labels.get(config.traefik.networkLabel, "")
     allowed_networks = allowed_networks_label.split(",")
+
+    # add alias labels
+    labels = container.attrs["Config"]["Labels"] or {}
+    alias_labels = labels.get("traefik.aliases")
+    aliases = []
+    if alias_labels:
+        aliases = [a.strip() for a in alias_labels.split(",")]
     
     app_logger.debug(f"Allowed networks: {allowed_networks}")
 
@@ -130,7 +137,10 @@ def connect_traefik_to_network(container):
         if allowed_networks == [''] or net in allowed_networks:
             if net not in traefik_container.attrs["NetworkSettings"]["Networks"]:
                 app_logger.debug(f"Connecting Traefik to network {net}.")
-                network.connect(traefik_container)
+                if aliases:
+                    network.connect(traefik_container, aliases=aliases)
+                else:
+                    network.connect(traefik_container)
                 app_logger.info(f"Successfully connected Traefik to network {net}.")
             else:
                 app_logger.info(f"Traefik is already connected to network {net}, skipping connection.")
