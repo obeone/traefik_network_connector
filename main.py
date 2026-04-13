@@ -108,12 +108,9 @@ def connect_traefik_to_network(container):
     allowed_networks = allowed_networks_label.split(",")
 
     # add alias labels
-    labels = container.attrs["Config"]["Labels"] or {}
-    alias_labels = labels.get("traefik.aliases")
-    aliases = []
-    if alias_labels:
-        aliases = [a.strip() for a in alias_labels.split(",")]
-    
+    alias_label = container.labels.get("traefik.aliases")
+    aliases = [a.strip() for a in alias_label.split(",") if a.strip()] if alias_label else []
+
     app_logger.debug(f"Allowed networks: {allowed_networks}")
 
     for net in target_networks:
@@ -137,7 +134,7 @@ def connect_traefik_to_network(container):
         if allowed_networks == [''] or net in allowed_networks:
             if net not in traefik_container.attrs["NetworkSettings"]["Networks"]:
                 app_logger.debug(f"Connecting Traefik to network {net}.")
-                if aliases:
+                if aliases and net in allowed_networks:
                     network.connect(traefik_container, aliases=aliases)
                 else:
                     network.connect(traefik_container)

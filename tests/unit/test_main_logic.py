@@ -251,6 +251,113 @@ class TestConnectTraefikToNetwork:
 
         network.connect.assert_called_once_with(traefik)
 
+    def test_no_alias_set(self, mock_docker_client, mock_config, mock_logger):
+        """
+        When traefik.aliases is not set, the container should not get an alias
+        """
+        container = MagicMock()
+        container.name = "web-app"
+        container.attrs = {
+            "NetworkSettings": {"Networks": {"app_net": {}}}
+        }
+        container.labels = {}
+
+        traefik = MagicMock()
+        traefik.attrs = {"NetworkSettings": {"Networks": {"bridge": {}}}}
+        mock_docker_client.containers.get.return_value = traefik
+
+        network = MagicMock()
+        network.attrs = {"Name": "app_net", "Labels": {}}
+        mock_docker_client.networks.get.return_value = network
+
+        main.connect_traefik_to_network(container)
+
+        network.connect.assert_called_once()
+        assert("aliases" not in network.connect.call_args.kwargs.keys())
+
+    def test_single_alias_set(self, mock_docker_client, mock_config, mock_logger):
+        """
+        When traefik.aliases is set to a single value, the network connect call
+        should have that value as alias
+        """
+        container = MagicMock()
+        container.name = "web-app"
+        container.attrs = {
+            "NetworkSettings": {"Networks": {"app_net": {}}}
+        }
+        container.labels = {
+            "traefik.aliases": "app",
+            "traefik.docker.network": "app_net",
+        }
+
+        traefik = MagicMock()
+        traefik.attrs = {"NetworkSettings": {"Networks": {"bridge": {}}}}
+        mock_docker_client.containers.get.return_value = traefik
+
+        network = MagicMock()
+        network.attrs = {"Name": "app_net", "Labels": {}}
+        mock_docker_client.networks.get.return_value = network
+
+        main.connect_traefik_to_network(container)
+
+        network.connect.assert_called_once_with(traefik, aliases=["app"])
+
+    def test_multiple_aliases_set(self, mock_docker_client, mock_config, mock_logger):
+        """
+        When traefik.aliases is set to a comma separated string, the network
+        connect call should have a list of strings value as aliases value
+        """
+        container = MagicMock()
+        container.name = "web-app"
+        container.attrs = {
+            "NetworkSettings": {"Networks": {"app_net": {}}}
+        }
+        container.labels = {
+            "traefik.aliases": "app, app2, app3",
+            "traefik.docker.network": "app_net",
+        }
+
+        traefik = MagicMock()
+        traefik.attrs = {"NetworkSettings": {"Networks": {"bridge": {}}}}
+        mock_docker_client.containers.get.return_value = traefik
+
+        network = MagicMock()
+        network.attrs = {"Name": "app_net", "Labels": {}}
+        mock_docker_client.networks.get.return_value = network
+
+        main.connect_traefik_to_network(container)
+
+        network.connect.assert_called_once_with(
+            traefik, aliases=["app", "app2", "app3"])
+
+    def test_aliases_with_additional_whitespace(self, mock_docker_client, mock_config, mock_logger):
+        """
+        When traefik.aliases is set to a comma separated string, the network
+        connect call should have a list of strings value as aliases value
+        """
+        container = MagicMock()
+        container.name = "web-app"
+        container.attrs = {
+            "NetworkSettings": {"Networks": {"app_net": {}}}
+        }
+        container.labels = {
+            "traefik.aliases": " app one, app2, app3   ",
+            "traefik.docker.network": "app_net",
+        }
+
+        traefik = MagicMock()
+        traefik.attrs = {"NetworkSettings": {"Networks": {"bridge": {}}}}
+        mock_docker_client.containers.get.return_value = traefik
+
+        network = MagicMock()
+        network.attrs = {"Name": "app_net", "Labels": {}}
+        mock_docker_client.networks.get.return_value = network
+
+        main.connect_traefik_to_network(container)
+
+        network.connect.assert_called_once_with(
+            traefik, aliases=["app one", "app2", "app3"])
+
 
 # ---------------------------------------------------------------------------
 # disconnect_traefik_from_network
@@ -462,3 +569,4 @@ class TestConnectToAllRelevantNetworks:
 
         # connect should have been called for both containers' networks
         assert network.connect.call_count == 2
+
