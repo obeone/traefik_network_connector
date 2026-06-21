@@ -106,6 +106,25 @@ labels:
 > A network named `frontend` in a project folder `myapp` becomes
 > `myapp_frontend`.
 
+### Network aliases
+
+If a container has the label `traefik.aliases` these aliases are set for
+traefik when it is added to the network. `traefik.aliases` must be a
+comma-separated list. Having aliases on traefik is useful to separate stacks
+but still letting a container from one stack talk through traefik to the other
+stack.
+
+```yaml
+labels:
+  - "traefik.enable=true"
+  - "traefik.aliases=myotherapp.domain"
+  - "traefik.docker.network=myapp_frontend"
+  - "traefik.http.routers.myapp.rule=Host(`myapp.${DOMAIN}`)"
+  - "traefik.http.routers.myapp.entrypoints=websecure"
+  - "traefik.http.routers.myapp.tls.certresolver=letsencrypt"
+  - "traefik.http.services.myapp.loadbalancer.server.port=8080"
+```
+
 ---
 
 ## ⚙️ Configuration

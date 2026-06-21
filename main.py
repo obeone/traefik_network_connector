@@ -106,7 +106,11 @@ def connect_traefik_to_network(container):
     # Retrieve allowed networks from the container's labels, if specified
     allowed_networks_label = container.labels.get(config.traefik.networkLabel, "")
     allowed_networks = allowed_networks_label.split(",")
-    
+
+    # add alias labels
+    alias_label = container.labels.get("traefik.aliases")
+    aliases = [a.strip() for a in alias_label.split(",") if a.strip()] if alias_label else []
+
     app_logger.debug(f"Allowed networks: {allowed_networks}")
 
     for net in target_networks:
@@ -130,7 +134,15 @@ def connect_traefik_to_network(container):
         if allowed_networks == [''] or net in allowed_networks:
             if net not in traefik_container.attrs["NetworkSettings"]["Networks"]:
                 app_logger.debug(f"Connecting Traefik to network {net}.")
-                network.connect(traefik_container)
+                # We are already inside the allowed-networks guard above, so the
+                # aliases must be applied whenever they are set, including the
+                # default case where no allowed-networks label is provided
+                # (allowed_networks == ['']). An extra net membership check here
+                # would silently drop aliases in that default case.
+                if aliases:
+                    network.connect(traefik_container, aliases=aliases)
+                else:
+                    network.connect(traefik_container)
                 app_logger.info(f"Successfully connected Traefik to network {net}.")
             else:
                 app_logger.info(f"Traefik is already connected to network {net}, skipping connection.")
