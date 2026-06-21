@@ -358,6 +358,33 @@ class TestConnectTraefikToNetwork:
         network.connect.assert_called_once_with(
             traefik, aliases=["app one", "app2", "app3"])
 
+    def test_alias_set_without_network_label(self, mock_docker_client, mock_config, mock_logger):
+        """
+        Regression: when traefik.aliases is set but no allowed-networks label is
+        provided (all networks allowed by default), the aliases must still be
+        applied to the network connect call.
+        """
+        container = MagicMock()
+        container.name = "web-app"
+        container.attrs = {
+            "NetworkSettings": {"Networks": {"app_net": {}}}
+        }
+        container.labels = {
+            "traefik.aliases": "app",
+        }
+
+        traefik = MagicMock()
+        traefik.attrs = {"NetworkSettings": {"Networks": {"bridge": {}}}}
+        mock_docker_client.containers.get.return_value = traefik
+
+        network = MagicMock()
+        network.attrs = {"Name": "app_net", "Labels": {}}
+        mock_docker_client.networks.get.return_value = network
+
+        main.connect_traefik_to_network(container)
+
+        network.connect.assert_called_once_with(traefik, aliases=["app"])
+
 
 # ---------------------------------------------------------------------------
 # disconnect_traefik_from_network

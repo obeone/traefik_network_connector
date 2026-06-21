@@ -134,7 +134,12 @@ def connect_traefik_to_network(container):
         if allowed_networks == [''] or net in allowed_networks:
             if net not in traefik_container.attrs["NetworkSettings"]["Networks"]:
                 app_logger.debug(f"Connecting Traefik to network {net}.")
-                if aliases and net in allowed_networks:
+                # We are already inside the allowed-networks guard above, so the
+                # aliases must be applied whenever they are set, including the
+                # default case where no allowed-networks label is provided
+                # (allowed_networks == ['']). An extra net membership check here
+                # would silently drop aliases in that default case.
+                if aliases:
                     network.connect(traefik_container, aliases=aliases)
                 else:
                     network.connect(traefik_container)
