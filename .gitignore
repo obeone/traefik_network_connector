@@ -50,3 +50,7 @@ venv.bak/
 # Misc
 .history
 /test
+
+# Claude
+/.claude/settings.local.json
+.worktrees

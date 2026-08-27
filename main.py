@@ -2,6 +2,18 @@ import docker
 import logging
 from config import config, app_logger
 import re
+import os
+
+# --- Version ---
+
+# Read the version from the VERSION file
+try:
+    with open("VERSION") as version_file:
+        __version__ = version_file.read().strip()
+except FileNotFoundError:
+    __version__ = "0.0.0"
+
+# --- Cache ---
 
 # Initialize the cache for container details
 container_cache = {}
@@ -77,12 +89,8 @@ def is_traefik_running():
     Returns:
         bool: True if Traefik container is running, False otherwise.
     """
-    try:
-        traefik = get_traefik_container()
-        if traefik is not None:
-            return traefik.status == "running"
-    except docker.errors.NotFound:
-        return False
+    traefik = get_traefik_container()
+    return traefik is not None and traefik.status == "running"
 
 def connect_to_all_relevant_networks():
     """
@@ -126,6 +134,10 @@ def connect_traefik_to_network(container):
     allowed_networks_label = container.labels.get(config.traefik.networkLabel, "")
     allowed_networks = allowed_networks_label.split(",")
 
+    # add alias labels
+    alias_label = container.labels.get("traefik.aliases")
+    aliases = [a.strip() for a in alias_label.split(",") if a.strip()] if alias_label else []
+
     app_logger.debug(f"Allowed networks: {allowed_networks}")
 
     for net in target_networks:
@@ -149,7 +161,15 @@ def connect_traefik_to_network(container):
         if (allowed_networks == [''] or net in allowed_networks) and net.lower() != 'host':
             if net not in traefik_container.attrs["NetworkSettings"]["Networks"]:
                 app_logger.debug(f"Connecting Traefik to network {net}.")
-                network.connect(traefik_container)
+                # We are already inside the allowed-networks guard above, so the
+                # aliases must be applied whenever they are set, including the
+                # default case where no allowed-networks label is provided
+                # (allowed_networks == ['']). An extra net membership check here
+                # would silently drop aliases in that default case.
+                if aliases:
+                    network.connect(traefik_container, aliases=aliases)
+                else:
+                    network.connect(traefik_container)
                 app_logger.info(f"Successfully connected Traefik to network {net}.")
             else:
                 app_logger.info(f"Traefik is already connected to network {net}, skipping connection.")
@@ -223,17 +243,25 @@ def monitor_events():
             app_logger.warning("Traefik is not running. Skipping event handling.")
             continue
 
+        # Extract the container ID from the event.
+        # The top-level "id" field is deprecated since Docker Engine API 1.47 in favour of Actor.ID.
+        # We prefer Actor.ID and fall back to the legacy field for older engines.
+        container_id = event.get("Actor", {}).get("ID") or event.get("id")
+        if not container_id:
+            app_logger.warning("Received container event without a resolvable container ID. Skipping.")
+            continue
+
         # Update the container cache on every container event (can be manual connection to network for example)
-        update_container_cache(event["id"])
+        update_container_cache(container_id)
 
         # Fetch the container from the cache or None if not found
-        container = container_cache[event["id"]] if event["id"] in container_cache else None
+        container = container_cache[container_id] if container_id in container_cache else None
 
-        app_logger.debug(f"Event detected: {event['Action']} on container {container.name if container else event['id']} with ID {event['id']}.")
+        app_logger.debug(f"Event detected: {event['Action']} on container {container.name if container else container_id} with ID {container_id}.")
 
         # Skip further processing if the container is not found or Traefik is not running
         if container is None:
-            app_logger.warning(f"Container {event['id']} not found. Skipping event handling.")
+            app_logger.warning(f"Container {container_id} not found. Skipping event handling.")
             continue
 
         # Handle both creation and destruction events for Traefik itself
@@ -256,18 +284,21 @@ def monitor_events():
                     f"Container {container.name} is being stopped. Attempting to disconnect Traefik from relevant networks."
                 )
                 disconnect_traefik_from_network(container)
-                del container_cache[event["id"]]
+                del container_cache[container_id]
 
             elif event["Action"] == "die":
                 app_logger.info(
                     f"Container {container.name} is being killed. Attempting to disconnect Traefik from relevant networks."
                 )
                 disconnect_traefik_from_network(container)
-                del container_cache[event["id"]]
+                del container_cache[container_id]
 
 if __name__ == "__main__":
+    # Display the version
+    print(f"Version: {__version__}")
+
     # Connect to all relevant networks on startup
     connect_to_all_relevant_networks()
 
-    # Start monitoring events loop‹≤
+    # Start monitoring events loop
     monitor_events()
