@@ -15,7 +15,6 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-      id-token: write
 
     steps:
       - name: Checkout base repository
@@ -31,6 +30,16 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Anthropic's app-token exchange rejects OIDC tokens minted for
+          # pull_request_target runs ("401 Invalid OIDC token"), so use the
+          # workflow's own GITHUB_TOKEN instead of the OIDC exchange.
+          # Comments are posted as github-actions[bot] instead of claude[bot].
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Review PRs from fork contributors too (the reason this workflow
+          # uses pull_request_target). The base branch is checked out, not the
+          # fork's code, and the prompt is fixed; restrict to a user list if
+          # running Claude on any external PR is a concern.
+          allowed_non_write_users: '*'
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
