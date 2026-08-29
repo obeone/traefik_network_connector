@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout base repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Explicitly checkout the base branch, not the fork's code.
           # This is required when using pull_request_target with fork PRs.
