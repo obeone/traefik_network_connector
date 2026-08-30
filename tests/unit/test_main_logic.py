@@ -114,20 +114,17 @@ class TestIsTraefikRunning:
     """Tests for the is_traefik_running function."""
 
     def test_traefik_running(self, mock_docker_client, mock_config):
-        """Should return True when a running container named 'traefik' exists."""
+        """Should return True when the traefik container exists and is running."""
         traefik = MagicMock()
         traefik.name = "traefik"
         traefik.status = "running"
-        mock_docker_client.containers.list.return_value = [traefik]
+        mock_docker_client.containers.get.return_value = traefik
 
         assert main.is_traefik_running() is True
 
     def test_traefik_not_running(self, mock_docker_client, mock_config):
-        """Should return False when no container named 'traefik' is running."""
-        other = MagicMock()
-        other.name = "other-container"
-        other.status = "running"
-        mock_docker_client.containers.list.return_value = [other]
+        """Should return False when the traefik container does not exist."""
+        mock_docker_client.containers.get.side_effect = docker.errors.NotFound("not found")
 
         assert main.is_traefik_running() is False
 
@@ -136,7 +133,7 @@ class TestIsTraefikRunning:
         traefik = MagicMock()
         traefik.name = "traefik"
         traefik.status = "exited"
-        mock_docker_client.containers.list.return_value = [traefik]
+        mock_docker_client.containers.get.return_value = traefik
 
         assert main.is_traefik_running() is False
 
@@ -579,6 +576,7 @@ class TestConnectToAllRelevantNetworks:
         mock_docker_client.containers.list.side_effect = list_side_effect
 
         traefik_detail = MagicMock()
+        traefik_detail.status = "running"
         traefik_detail.attrs = {"NetworkSettings": {"Networks": {"bridge": {}}}}
 
         def get_container(name):

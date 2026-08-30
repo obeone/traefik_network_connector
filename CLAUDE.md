@@ -40,15 +40,16 @@ The entire application is two Python files:
 ### Core Flow
 
 1. **Startup**: Creates Docker client, scans all running containers, connects Traefik to networks of containers with `traefik.enable=true` label.
-2. **Event loop** (`monitor_events()`): Listens to Docker container events:
-   - `start`: If Traefik itself starts → reconnect to all relevant networks. If labeled container starts → connect Traefik to its network.
-   - `stop`/`die`: If labeled container stops → disconnect Traefik from its network only if no other labeled containers remain on it.
-3. **Container cache** (`container_cache` dict): Stores container objects by ID so they can be referenced on `stop`/`die` events when the container API may no longer return them.
+2. **Two parallel event subscriptions**, both filtered server-side by the Docker daemon (not in Python) to keep CPU usage low:
+   - **`monitor_events()`** (main thread): Listens for `start`/`stop`/`die` on containers carrying `monitoredLabel`. `start` → connect Traefik to the container's network. `stop`/`die` → disconnect Traefik from that network unless another labeled container is still using it.
+   - **`monitor_traefik_events()`** (background thread, started in `__main__`): Listens for `start` events scoped to `traefik.containerName` specifically, independent of `monitoredLabel` — Traefik itself typically doesn't carry the label, since it has no need to route to itself. On a Traefik restart, triggers `connect_to_all_relevant_networks()` to re-establish every connection. This dedicated subscription exists so the label filter on `monitor_events()` can stay in place without silently swallowing Traefik's own lifecycle events.
+3. **Container cache** (`container_cache` dict): Stores container objects by ID so they can be referenced on `stop`/`die` events when the container API may no longer return them. Mainly written by `monitor_events()`, but also indirectly by `monitor_traefik_events()` via `connect_to_all_relevant_networks()` → `update_container_cache()`, so it's written from both threads.
 
 ### Key Labels
 
-- `traefik.enable` (regex-matched via `traefik.monitoredLabel` config) — triggers network connection
+- `traefik.enable` (label key configured via `traefik.monitoredLabel`, matched against the value in `traefik.monitoredLabelCondition`) — triggers network connection
 - `traefik.docker.network` — specifies which network(s) Traefik should connect to for a container
+- `traefik.aliases` — comma-separated network aliases to register for the container when Traefik connects to its network
 
 ## Configuration
 

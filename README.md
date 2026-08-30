@@ -143,7 +143,8 @@ CLI arguments  >  environment variables  >  config.yaml
 | Docker socket/host | `DOCKER_HOST` | `--docker.host` | Unix socket |
 | General log level | `LOGLEVEL` | `--loglevel.general` | `INFO` |
 | App log level | `LOGLEVEL_APPLICATION` | `--loglevel.application` | `DEBUG` |
-| Monitored label (regex) | `TRAEFIK_MONITOREDLABEL` | `--traefik.monitoredlabel` | `^traefik.enable$` |
+| Monitored label | `TRAEFIK_MONITOREDLABEL` | `--traefik.monitoredlabel` | `traefik.enable` |
+| Monitored label value | `TRAEFIK_MONITOREDLABELCONDITION` | `--traefik.monitoredlabelcondition` | `true` |
 | Network label | `TRAEFIK_NETWORKLABEL` | `--traefik.networklabel` | `traefik.docker.network` |
 
 ### config.yaml (full reference)
@@ -163,7 +164,8 @@ logLevel:
 
 traefik:
   containerName: "traefik"
-  monitoredLabel: "^traefik.enable$"
+  monitoredLabel: "traefik.enable"
+  monitoredLabelCondition: "true"
   # networkLabel: "traefik.docker.network"  # default, rarely changed
 ```
 

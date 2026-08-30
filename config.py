@@ -49,10 +49,12 @@ class TraefikConfig(NamedTuple):
     Attributes:
         containerName (str): The name of the Traefik container.
         monitoredLabel (str): The label used to identify monitored services.
+        monitoredLabelCondition (str): The value of the label used for service identification.
         networkLabel (str): The label used to identify the network.
     """
     containerName: str
     monitoredLabel: str
+    monitoredLabelCondition: str
     networkLabel: str
 
 class Config(NamedTuple):
@@ -177,6 +179,10 @@ def load_config() -> Config:
     if 'networkLabel' not in config_data['traefik']:
         config_data['traefik']['networkLabel'] = 'traefik.docker.network'
 
+    # Backward compatibility for config.yaml files predating the monitoredLabelCondition split
+    if 'monitoredLabelCondition' not in config_data['traefik']:
+        config_data['traefik']['monitoredLabelCondition'] = 'true'
+
     docker: DockerConfig = DockerConfig(host=config_data["docker"]["host"], tls=docker_tls)
 
     log_level: LogLevelConfig = LogLevelConfig(
@@ -186,6 +192,7 @@ def load_config() -> Config:
     traefik: TraefikConfig = TraefikConfig(
         containerName=config_data["traefik"]["containerName"],
         monitoredLabel=config_data["traefik"]["monitoredLabel"],
+        monitoredLabelCondition=config_data["traefik"]["monitoredLabelCondition"],
         networkLabel=config_data["traefik"]["networkLabel"])
 
     config: Config = Config(docker=docker, logLevel=log_level, traefik=traefik)

@@ -45,7 +45,8 @@ def make_test_config(**overrides):
     log_level = LogLevelConfig(general="INFO", application="DEBUG")
     traefik = TraefikConfig(
         containerName="traefik",
-        monitoredLabel="^traefik.enable$",
+        monitoredLabel="traefik.enable",
+        monitoredLabelCondition="true",
         networkLabel="traefik.docker.network",
     )
     return Config(docker=docker, logLevel=log_level, traefik=traefik)
