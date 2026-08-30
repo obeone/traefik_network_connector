@@ -179,6 +179,10 @@ def load_config() -> Config:
     if 'networkLabel' not in config_data['traefik']:
         config_data['traefik']['networkLabel'] = 'traefik.docker.network'
 
+    # Backward compatibility for config.yaml files predating the monitoredLabelCondition split
+    if 'monitoredLabelCondition' not in config_data['traefik']:
+        config_data['traefik']['monitoredLabelCondition'] = 'true'
+
     docker: DockerConfig = DockerConfig(host=config_data["docker"]["host"], tls=docker_tls)
 
     log_level: LogLevelConfig = LogLevelConfig(

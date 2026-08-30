@@ -147,6 +147,34 @@ class TestLoadConfig:
             cfg = load_config()
         assert cfg.traefik.networkLabel == "traefik.docker.network"
 
+    def test_monitored_label_condition_backward_compat_fallback(self):
+        """
+        A config.yaml predating the monitoredLabelCondition split (e.g. a user's own file
+        mounted over the packaged default) must fall back to 'true' instead of raising a
+        KeyError, the same way networkLabel already falls back when absent.
+        """
+        stub_config = {
+            "docker": {
+                "host": "unix:///var/run/docker.sock",
+                "tls": {
+                    "enabled": False,
+                    "verify": "/path/to/ca.pem",
+                    "cert": "/path/to/cert.pem",
+                    "key": "/path/to/key.pem",
+                },
+            },
+            "logLevel": {"general": "INFO", "application": "DEBUG"},
+            "traefik": {
+                "containerName": "traefik",
+                "monitoredLabel": "traefik.enable",
+            },
+        }
+        with patch("sys.argv", ["prog"]), \
+             patch("builtins.open", mock_open(read_data="")), \
+             patch("yaml.safe_load", return_value=stub_config):
+            cfg = load_config()
+        assert cfg.traefik.monitoredLabelCondition == "true"
+
 
 # ---------------------------------------------------------------------------
 # Environment variable overrides
