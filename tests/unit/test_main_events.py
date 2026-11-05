@@ -8,6 +8,7 @@ Traefik's running state.
 
 from unittest.mock import MagicMock, call, patch
 
+import docker.errors
 import pytest
 
 import main
@@ -84,7 +85,6 @@ class TestMonitorEvents:
         traefik.name = "traefik"
         traefik.status = "running"
 
-        mock_docker_client.containers.list.return_value = [traefik]
 
         def get_container(cid):
             if cid == "web-123":
@@ -120,9 +120,8 @@ class TestMonitorEvents:
         traefik.name = "traefik"
         traefik.status = "running"
 
-        mock_docker_client.containers.list.return_value = [traefik]
         mock_docker_client.containers.get.side_effect = lambda cid: (
-            container if cid == "web-123" else MagicMock()
+            container if cid == "web-123" else traefik
         )
 
         events = [make_event("stop", "web-123")]
@@ -150,9 +149,8 @@ class TestMonitorEvents:
         traefik.name = "traefik"
         traefik.status = "running"
 
-        mock_docker_client.containers.list.return_value = [traefik]
         mock_docker_client.containers.get.side_effect = lambda cid: (
-            container if cid == "web-123" else MagicMock()
+            container if cid == "web-123" else traefik
         )
 
         events = [make_event("die", "web-123")]
@@ -181,9 +179,8 @@ class TestMonitorEvents:
         traefik.name = "traefik"
         traefik.status = "running"
 
-        mock_docker_client.containers.list.return_value = [traefik]
         mock_docker_client.containers.get.side_effect = lambda cid: (
-            container if cid == "plain-123" else MagicMock()
+            container if cid == "plain-123" else traefik
         )
 
         events = [make_event("start", "plain-123")]
@@ -203,7 +200,7 @@ class TestMonitorEvents:
         When Traefik is not running, all events should be skipped
         with a warning logged.
         """
-        mock_docker_client.containers.list.return_value = []
+        mock_docker_client.containers.get.side_effect = docker.errors.NotFound("gone")
 
         events = [make_event("start", "web-123")]
         mock_docker_client.events.return_value = iter(events)
@@ -212,6 +209,105 @@ class TestMonitorEvents:
             main.container_cache.clear()
             main.monitor_events()
             mock_connect.assert_not_called()
+
+    def test_healthcheck_burst_performs_no_container_requests(
+        self, mock_docker_client, mock_config, mock_logger
+    ):
+        """Ignored events must not trigger an inspect of every running container."""
+        events = [
+            make_event(action)
+            for _ in range(1000)
+            for action in ("exec_create: /app healthcheck", "exec_start: /app healthcheck", "exec_die")
+        ]
+        mock_docker_client.events.return_value = iter(events)
+
+        main.monitor_events()
+
+        mock_docker_client.containers.get.assert_not_called()
+        mock_docker_client.containers.list.assert_not_called()
+        mock_docker_client.events.assert_called_once_with(
+            decode=True,
+            filters={"type": "container", "event": ["start", "stop", "die"]},
+        )
+
+    @pytest.mark.parametrize("action", [
+        "health_status: healthy", "health_status: unhealthy", "create", "destroy",
+        "top", "exec_create", "exec_start", "unknown", None,
+    ])
+    def test_irrelevant_actions_perform_no_container_requests(
+        self, mock_docker_client, mock_config, action
+    ):
+        mock_docker_client.events.return_value = iter([make_event(action)])
+
+        main.monitor_events()
+
+        mock_docker_client.containers.get.assert_not_called()
+        mock_docker_client.containers.list.assert_not_called()
+
+    @pytest.mark.parametrize("identity", [
+        {"Actor": {"ID": "web-123"}},
+        {"id": "web-123"},
+        {"Actor": {"ID": "web-123"}, "id": "legacy-id"},
+    ])
+    def test_lifecycle_event_needs_only_two_container_reads(
+        self, mock_docker_client, mock_config, identity
+    ):
+        traefik = MagicMock(status="running")
+        container = MagicMock(id="web-123", labels={"traefik.enable": "true"})
+        container.name = "web-app"
+        mock_docker_client.containers.get.side_effect = {
+            "traefik": traefik, "web-123": container,
+        }.__getitem__
+        mock_docker_client.events.return_value = iter([
+            {"Type": "container", "Action": "start", **identity},
+        ])
+
+        with patch.object(main, "connect_traefik_to_network") as connect:
+            main.container_cache.clear()
+            main.monitor_events()
+            connect.assert_called_once_with(container)
+
+        assert mock_docker_client.containers.get.call_args_list == [
+            call("traefik"), call("web-123"),
+        ]
+        mock_docker_client.containers.list.assert_not_called()
+
+    def test_event_without_id_performs_no_container_requests(
+        self, mock_docker_client, mock_config, mock_logger
+    ):
+        mock_docker_client.events.return_value = iter([
+            {"Type": "container", "Action": "start"},
+        ])
+
+        main.monitor_events()
+
+        mock_docker_client.containers.get.assert_not_called()
+        mock_docker_client.containers.list.assert_not_called()
+        mock_logger.warning.assert_called_once()
+
+    @pytest.mark.parametrize("action", ["stop", "die"])
+    def test_removed_container_uses_cached_network_details(
+        self, mock_docker_client, mock_config, action
+    ):
+        traefik = MagicMock(status="running")
+        container = MagicMock(id="web-123", labels={"traefik.enable": "true"})
+        container.name = "web-app"
+
+        def get_container(cid):
+            if cid == "traefik":
+                return traefik
+            raise docker.errors.NotFound("already removed")
+
+        mock_docker_client.containers.get.side_effect = get_container
+        mock_docker_client.events.return_value = iter([make_event(action, "web-123")])
+        main.container_cache.clear()
+        main.container_cache[container.id] = container
+
+        with patch.object(main, "disconnect_traefik_from_network") as disconnect:
+            main.monitor_events()
+            disconnect.assert_called_once_with(container)
+
+        assert (container.id in main.container_cache) == (action == "stop")
 
     def test_traefik_start_event_triggers_connect_all(
         self, mock_docker_client, mock_config, mock_logger
@@ -227,7 +323,6 @@ class TestMonitorEvents:
         traefik.labels = {"traefik.enable": "true"}
         traefik.attrs = {"NetworkSettings": {"Networks": {"bridge": {}}}}
 
-        mock_docker_client.containers.list.return_value = [traefik]
         mock_docker_client.containers.get.side_effect = lambda cid: traefik
 
         events = [make_event("start", "traefik-123")]

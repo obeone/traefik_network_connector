@@ -199,8 +199,11 @@ def is_traefik_running():
     Returns:
         bool: True if Traefik container is running, False otherwise.
     """
-    traefik_running = any(container.status == "running" for container in client.containers.list() if container.name == config.traefik.containerName)
-    return traefik_running
+    try:
+        traefik = client.containers.get(config.traefik.containerName)
+    except docker.errors.NotFound:
+        return False
+    return traefik.status == "running"
 
 def monitor_events():
     """
@@ -215,14 +218,16 @@ def monitor_events():
         "container": ["start", "stop", "die"],
     }
 
-    # Listen to Docker events in real-time
-    for event in client.events(decode=True):
-        # Filter out events that are not related to container creation/destruction
-        if event.get('Type') != 'container':
-            continue
-        
-        if not is_traefik_running():
-            app_logger.warning("Traefik is not running. Skipping event handling.")
+    # Filter at the daemon to avoid processing healthcheck/exec event traffic.
+    for event in client.events(
+        decode=True,
+        filters={"type": "container", "event": tracked_events["container"]},
+    ):
+        # Keep the local guard before any API reads, even for unfiltered events.
+        if (
+            event.get("Type") != "container"
+            or event.get("Action") not in tracked_events["container"]
+        ):
             continue
 
         # Extract the container ID from the event.
@@ -233,7 +238,11 @@ def monitor_events():
             app_logger.warning("Received container event without a resolvable container ID. Skipping.")
             continue
 
-        # Update the container cache on every container event (can be manual connection to network for example)
+        if not is_traefik_running():
+            app_logger.warning("Traefik is not running. Skipping event handling.")
+            continue
+
+        # Refresh only for lifecycle events that can change network membership.
         update_container_cache(container_id)
 
         # Check if the event is relevant for network management
