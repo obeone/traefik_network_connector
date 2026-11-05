@@ -118,27 +118,40 @@ class TestIsTraefikRunning:
         traefik = MagicMock()
         traefik.name = "traefik"
         traefik.status = "running"
-        mock_docker_client.containers.list.return_value = [traefik]
+        mock_docker_client.containers.get.return_value = traefik
 
         assert main.is_traefik_running() is True
+        mock_docker_client.containers.get.assert_called_once_with("traefik")
+        mock_docker_client.containers.list.assert_not_called()
 
     def test_traefik_not_running(self, mock_docker_client, mock_config):
         """Should return False when no container named 'traefik' is running."""
-        other = MagicMock()
-        other.name = "other-container"
-        other.status = "running"
-        mock_docker_client.containers.list.return_value = [other]
+        mock_docker_client.containers.get.side_effect = docker.errors.NotFound("gone")
 
         assert main.is_traefik_running() is False
+        mock_docker_client.containers.list.assert_not_called()
 
     def test_traefik_stopped(self, mock_docker_client, mock_config):
         """Should return False when the traefik container exists but is not running."""
         traefik = MagicMock()
         traefik.name = "traefik"
         traefik.status = "exited"
-        mock_docker_client.containers.list.return_value = [traefik]
+        mock_docker_client.containers.get.return_value = traefik
 
         assert main.is_traefik_running() is False
+
+    def test_uses_configured_container_name(self, mock_docker_client, mock_config):
+        mock_docker_client.containers.get.return_value.status = "running"
+        with patch.object(main, "config", mock_config._replace(
+            traefik=mock_config.traefik._replace(containerName="edge-proxy")
+        )):
+            assert main.is_traefik_running() is True
+        mock_docker_client.containers.get.assert_called_once_with("edge-proxy")
+
+    def test_api_errors_are_not_treated_as_stopped(self, mock_docker_client, mock_config):
+        mock_docker_client.containers.get.side_effect = docker.errors.APIError("unavailable")
+        with pytest.raises(docker.errors.APIError):
+            main.is_traefik_running()
 
 
 # ---------------------------------------------------------------------------
@@ -541,12 +554,11 @@ class TestConnectToAllRelevantNetworks:
 
     def test_skips_when_traefik_not_running(self, mock_docker_client, mock_config, mock_logger):
         """Should do nothing if Traefik is not running."""
-        mock_docker_client.containers.list.return_value = []
+        mock_docker_client.containers.get.side_effect = docker.errors.NotFound("gone")
 
         main.connect_to_all_relevant_networks()
 
-        # containers.list is called by is_traefik_running, not for filtering
-        # No network connections should happen
+        mock_docker_client.containers.list.assert_not_called()
         mock_docker_client.networks.get.assert_not_called()
 
     def test_connects_to_all_labeled_containers(self, mock_docker_client, mock_config, mock_logger):
@@ -579,6 +591,7 @@ class TestConnectToAllRelevantNetworks:
         mock_docker_client.containers.list.side_effect = list_side_effect
 
         traefik_detail = MagicMock()
+        traefik_detail.status = "running"
         traefik_detail.attrs = {"NetworkSettings": {"Networks": {"bridge": {}}}}
 
         def get_container(name):
